@@ -25,18 +25,18 @@ func (manager *Manager) Init() {
 
 	db, err := sqlx.Open("mysql", "root:85864546@tcp(127.0.0.1:3306)/TODODATA")
 	if err != nil {
-		fmt.Println("Error: ", err.Error())
+		log.Panicf("Manager.Init: Error when open database: %v", err.Error())
 		return
 	}
 	manager.database = db
 
 	err = manager.database.QueryRow("SELECT COUNT(*) FROM Users").Scan(&manager.userCount)
 	if err != nil {
-		log.Println("Manager.Init: Error at count users.")
+		log.Printf("Manager.Init: Error at count users.")
 	} else {
-		log.Printf("Manager.Init: userCount = %v\n", manager.userCount)
+		log.Printf("Manager.Init: userCount=%v", manager.userCount)
 	}
-	manager.OutputUsers()
+
 }
 
 func (manager *Manager) End() {
@@ -87,17 +87,16 @@ func (manager *Manager) OutputUsers() {
 
 func (manager *Manager) AddItem(userId int, todoItem Item) (int, int) {
 	var newItemId int
-	var contains bool
 	// Allocate item id
 	emptyItemId, contains := manager.emptyItemId[userId]
-	if contains || len(emptyItemId) == 0 {
+	if !contains || len(emptyItemId) == 0 {
 		newItemId = manager.itemCount[userId]
 	} else {
 		newItemId = emptyItemId[0]
 		manager.emptyItemId[userId] = emptyItemId[1:]
 	}
 
-	// Insert item
+	// Insert item into database
 	_, err := manager.database.Exec(
 		"INSERT INTO todo(id, title, content, create_time, deadline, tag, done, userid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 		newItemId, todoItem.Title, todoItem.Content, todoItem.CreateTime, todoItem.Deadline, todoItem.Tag, todoItem.Done, userId)
@@ -124,29 +123,58 @@ func (manager *Manager) GetItemById(userId int, itemId int) (DataBaseTodoItem, i
 	return todoItems[0], StatusDatabaseCommandOK
 }
 
-func (manager *Manager) GetAllItem(userId int) ([]DataBaseTodoItem, int) {
+func (manager *Manager) GetItems(userId int, requestItem RequestGetItemsItem) ([]DataBaseTodoItem, int) {
 	itemList := make([]DataBaseTodoItem, 0)
-	err := manager.database.Select(&itemList, "SELECT * FROM todo WHERE userid = ?", userId)
+	command := fmt.Sprintf("SELECT * FROM todo WHERE %s",
+		strings.Join(append(requestItem.ToSqlSelectWhereCommandStrings(),
+			fmt.Sprintf("userid = %d", userId)), " AND "))
+	fmt.Println(command)
+	err := manager.database.Select(&itemList, command)
 	if err != nil {
-		return itemList, StatusPhraseIdError
+		return itemList, StatusDatabaseCommandError
 	}
 	return itemList, StatusDatabaseCommandOK
 }
 
-func (manager *Manager) UpdateItem(userId int, itemId int, values map[string]string) int {
+func (manager *Manager) DeleteItemById(userId int, itemId int) int {
+	// Ensure item exists
 	if !manager.isTodoItemExists(userId, itemId) {
 		return StatusDatabaseSelectNotFound
 	}
+
+	// Delete item from database
+	_, err := manager.database.Exec("DELETE FROM todo WHERE userid = ? AND id = ?", userId, itemId)
+	if err != nil {
+		return StatusDatabaseCommandError
+	} else {
+		// Record empty item id.
+		emptyItemIdList, contains := manager.emptyItemId[userId]
+		if contains {
+			manager.emptyItemId[userId] = []int{itemId}
+		} else {
+			manager.emptyItemId[userId] = append(emptyItemIdList, itemId)
+		}
+		return StatusDatabaseCommandOK
+	}
+}
+
+func (manager *Manager) UpdateItem(userId int, itemId int, values map[string]string) int {
+	// Ensure item exists.
+	if !manager.isTodoItemExists(userId, itemId) {
+		return StatusDatabaseSelectNotFound
+	}
+
+	// Update item in database
+	// Generate sql command
 	command := "UPDATE todo SET "
 	valueStrings := make([]string, 0)
 	for key, value := range values {
 		valueStrings = append(valueStrings, fmt.Sprintf("%s = %s", key, value))
 	}
-	log.Println(valueStrings)
 	command += strings.Join(valueStrings, ", ")
-
 	command += fmt.Sprintf(" WHERE userid = %d AND id = %d", userId, itemId)
 	log.Printf("Manager.UpdateItem: Sql command: \n%s\n", command)
+
 	_, err := manager.database.Exec(command)
 	if err != nil {
 		log.Printf("Manage.UpdateItem: Error when update database: %v\n", err.Error())
@@ -218,6 +246,8 @@ func (manager *Manager) GetUserInfo(userId int) (RequestUserInfoItem, int) {
 
 func (manager *Manager) DeleteUser(userId int) int {
 	var err error
+
+	// Ensure user exists.
 	var userItems []DataBaseUserItem
 	err = manager.database.Select(&userItems, "SELECT * FROM Users WHERE id = ? LIMIT 1", userId)
 	if err != nil {
@@ -228,12 +258,18 @@ func (manager *Manager) DeleteUser(userId int) int {
 		return StatusDatabaseSelectNotFound
 	}
 
+	// Delete from database.
 	_, err = manager.database.Exec("DELETE FROM users WHERE id = ?", userId)
 	if err != nil {
 		log.Println("Manager.DeleteUser: Error when delete from database: ", err.Error())
 		return StatusDatabaseCommandError
 	}
 	_, err = manager.database.Exec("DELETE FROM todo WHERE userid = ?", userId)
+	if err != nil {
+		return StatusDatabaseCommandError
+	}
+
+	// Record empty user id.
 	userInfo := userItems[0]
 	manager.emptyUserId = append(manager.emptyUserId, userInfo.Id)
 	return StatusDatabaseCommandOK

@@ -6,6 +6,7 @@ import (
 )
 
 type RequestTodoItem struct {
+	Id         int    `json:"id"`
 	Title      string `json:"title"`
 	Content    string `json:"content"`
 	CreateTime string `json:"createTime"`
@@ -110,21 +111,21 @@ type RequestUserInfoItem struct {
 }
 
 type RequestGetItemsItem struct {
-	Tag  string `query:"tag"`
-	Done string `query:"done"`
+	Tag  string `form:"tag"`
+	Done string `form:"done"`
 }
 
-func (requestItem *RequestGetItemsItem) ToSqlSelectWhereCommand() string {
+func (requestItem *RequestGetItemsItem) ToSqlSelectWhereCommandStrings() []string {
 	commandStrings := make([]string, 0)
 	if requestItem.Tag != "" {
 		commandStrings = append(commandStrings, fmt.Sprintf("tag = \"%s\"", requestItem.Tag))
 	}
 	if requestItem.Done != "" {
-		commandStrings = append(commandStrings, fmt.Sprintf("done = \"%v\""), requestItem.Done)
+		if requestItem.Done == "true" {
+			commandStrings = append(commandStrings, "done = 1")
+		} else if requestItem.Done == "false" {
+			commandStrings = append(commandStrings, "done = 0")
+		}
 	}
-	if len(commandStrings) == 0 {
-		return ""
-	} else {
-		return "WHERE " + strings.Join(commandStrings, " AND ")
-	}
+	return commandStrings
 }

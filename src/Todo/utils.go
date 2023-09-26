@@ -1,7 +1,6 @@
 package Todo
 
 import (
-	"TODOList/src/handler"
 	"crypto/md5"
 	"fmt"
 )
@@ -27,12 +26,4 @@ func toMd5(password string) string {
 	data := []byte(password)
 	pwd := md5.Sum(data)
 	return fmt.Sprintf("%x", pwd)
-}
-
-func GenerateUserToken(userid int) string {
-	return handler.GenerateToken(&handler.UserClaims{Id: userid})
-}
-
-func GenerateNoUserToken() string {
-	return handler.GenerateToken(&handler.UserClaims{Id: -1})
 }

@@ -4,7 +4,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"log"
-	"net/http"
+	"time"
 )
 
 type UserClaims struct {
@@ -28,16 +28,17 @@ func GenerateToken(claims *UserClaims) string {
 func JwtVerify(ctx *gin.Context) {
 	t := ctx.GetHeader("token")
 	if t == "" {
-		ctx.Set("userid", -1)
+		ctx.Set("userClaims", &UserClaims{Id: -1})
 	} else {
-		ctx.Set("userid", ParseToken(t).Id)
+		ctx.Set("userClaims", ParseToken(t))
 	}
+	ctx.Set("tokenString", t)
+	refreshToken := ctx.GetHeader("refreshToken")
+	ctx.Set("refreshTokenString", refreshToken)
 }
 
 func ParseToken(tokenString string) *UserClaims {
-	token, err := jwt.ParseWithClaims(tokenString, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return secret, nil
-	})
+	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, &UserClaims{})
 	if err != nil {
 		log.Printf("ParseToken: %v\n", err.Error())
 		return &UserClaims{Id: -1}
@@ -46,17 +47,37 @@ func ParseToken(tokenString string) *UserClaims {
 	if ok {
 		return claims
 	} else {
-		log.Printf("ParseToken: Invalid token\n")
+		log.Printf("ParseToken: Invalid token.\n")
 		return &UserClaims{Id: -1}
 	}
 }
 
 func GetUserIdFromToken(ctx *gin.Context) int {
-	userIdInterface, ok := ctx.Get("userid")
+	userClaimsInterface, ok := ctx.Get("userClaims")
 	if !ok {
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": http.StatusBadRequest, "message": "Token error"})
 		log.Printf("Manager.RequestGetAllItem: Token error.")
 		return -1
 	}
-	return userIdInterface.(int)
+	userClaims := userClaimsInterface.(*UserClaims)
+	if userClaims.Id == -1 {
+		return -1
+	}
+	if userClaims.ExpiresAt < time.Now().Unix() {
+		return -1
+	} else {
+		return userClaims.Id
+	}
+}
+
+func GetUserIdFromTokenIgnoreExpiration(ctx *gin.Context) (int, bool) {
+	userClaimsInterface, ok := ctx.Get("userClaims")
+	if !ok {
+		log.Printf("Manager.RequestGetAllItem: Token error.")
+		return -1, true
+	}
+	userClaims := userClaimsInterface.(*UserClaims)
+	if userClaims.Id == -1 {
+		return -1, false
+	}
+	return userClaims.Id, userClaims.ExpiresAt < time.Now().Unix()
 }

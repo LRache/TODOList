@@ -2,6 +2,7 @@ package Todo
 
 func DatabaseToRequestTodoItem(databaseItem DataBaseTodoItem) RequestTodoItem {
 	var requestItem RequestTodoItem
+	requestItem.Id = databaseItem.Id
 	requestItem.Title = databaseItem.Title
 	requestItem.Content = databaseItem.Content
 	requestItem.CreateTime = databaseItem.CreateTime
@@ -9,6 +10,14 @@ func DatabaseToRequestTodoItem(databaseItem DataBaseTodoItem) RequestTodoItem {
 	requestItem.Tag = databaseItem.Tag
 	requestItem.Done = databaseItem.Done
 	return requestItem
+}
+
+func ListDatabaseToRequestTodoItem(databaseItems []DataBaseTodoItem) []RequestTodoItem {
+	requestItems := make([]RequestTodoItem, len(databaseItems))
+	for index, databaseItem := range databaseItems {
+		requestItems[index] = DatabaseToRequestTodoItem(databaseItem)
+	}
+	return requestItems
 }
 
 func RequestToTodoItem(requestItem RequestTodoItem) Item {
