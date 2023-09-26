@@ -1,14 +1,11 @@
 package Todo
 
 import (
-	"TODOList/src/handler"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"log"
-	"net/http"
-	"strconv"
+	"strings"
 )
 
 type Manager struct {
@@ -40,6 +37,29 @@ func (manager *Manager) Init() {
 		log.Printf("Manager.Init: userCount = %v\n", manager.userCount)
 	}
 	manager.OutputUsers()
+}
+
+func (manager *Manager) End() {
+	manager.database.Close()
+}
+
+func (manager *Manager) isUserExists(user string) bool {
+	var userItems []DataBaseUserItem
+	err := manager.database.Select(&userItems, "SELECT * FROM Users WHERE username = ? LIMIT 1", user)
+	if err != nil {
+		return false
+	}
+	return len(userItems) != 0
+}
+
+func (manager *Manager) isTodoItemExists(userId int, itemId int) bool {
+	var count int
+	err := manager.database.QueryRow("SELECT COUNT(*) FROM todo WHERE userid = ? AND id = ?", userId, itemId).Scan(&count)
+	if err != nil {
+		log.Printf("Manager.isTodoItemExists: Error when select from database: %v\n", err.Error())
+		return false
+	}
+	return count != 0
 }
 
 func (manager *Manager) updateUserItemInfo(userId int) {
@@ -113,13 +133,26 @@ func (manager *Manager) GetAllItem(userId int) ([]DataBaseTodoItem, int) {
 	return itemList, StatusDatabaseCommandOK
 }
 
-func (manager *Manager) isUserExists(user string) bool {
-	var userItems []DataBaseUserItem
-	err := manager.database.Select(&userItems, "SELECT * FROM Users WHERE username = ? LIMIT 1", user)
-	if err != nil {
-		return false
+func (manager *Manager) UpdateItem(userId int, itemId int, values map[string]string) int {
+	if !manager.isTodoItemExists(userId, itemId) {
+		return StatusDatabaseSelectNotFound
 	}
-	return len(userItems) != 0
+	command := "UPDATE todo SET "
+	valueStrings := make([]string, 0)
+	for key, value := range values {
+		valueStrings = append(valueStrings, fmt.Sprintf("%s = %s", key, value))
+	}
+	log.Println(valueStrings)
+	command += strings.Join(valueStrings, ", ")
+
+	command += fmt.Sprintf(" WHERE userid = %d AND id = %d", userId, itemId)
+	log.Printf("Manager.UpdateItem: Sql command: \n%s\n", command)
+	_, err := manager.database.Exec(command)
+	if err != nil {
+		log.Printf("Manage.UpdateItem: Error when update database: %v\n", err.Error())
+		return StatusDatabaseCommandError
+	}
+	return StatusDatabaseCommandOK
 }
 
 func (manager *Manager) AddUser(user RequestLoginUserItem) int {
@@ -204,176 +237,4 @@ func (manager *Manager) DeleteUser(userId int) int {
 	userInfo := userItems[0]
 	manager.emptyUserId = append(manager.emptyUserId, userInfo.Id)
 	return StatusDatabaseCommandOK
-}
-
-func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
-	var userItem RequestLoginUserItem
-	err := ctx.ShouldBindJSON(&userItem)
-	if err != nil {
-		log.Printf("Manager.RequestRegisterUser: Error when bind json to userItem: %v\n", err.Error())
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Error when bind json.", "token": GenerateNoUserToken()})
-		return
-	}
-	if !isValidUsername(userItem.Name) {
-		log.Printf("Manager.RequestRegisterUser: Invalid username: %v\n", userItem.Name)
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Invalid username.", "token": GenerateNoUserToken()})
-		return
-	}
-	if manager.isUserExists(userItem.Name) {
-		log.Printf("Manager.RequestRegisterUser: User exists: %v\n", userItem.Name)
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "User exists.", "token": GenerateNoUserToken()})
-		return
-	}
-
-	lastUserId := handler.GetUserIdFromToken(ctx)
-	newUserId := manager.AddUser(userItem)
-	if newUserId != -1 {
-		ctx.JSON(http.StatusCreated,
-			gin.H{"code": http.StatusCreated, "userId": newUserId, "token": GenerateUserToken(newUserId)})
-		manager.updateUserItemInfo(newUserId)
-		log.Printf("Manager.RequestRegisterUser: Add user successfully: %v\n", userItem.Name)
-	} else {
-		ctx.JSON(http.StatusInternalServerError,
-			gin.H{"code": 400, "message": "Failed.", "token": GenerateUserToken(lastUserId)})
-	}
-}
-
-func (manager *Manager) RequestLogin(ctx *gin.Context) {
-	lastUserId := handler.GetUserIdFromToken(ctx)
-
-	var userItem RequestLoginUserItem
-	err := ctx.ShouldBindJSON(&userItem)
-	if err != nil {
-		log.Printf("Manager.RequestLogin: Error when bind json: %v\n", err.Error())
-		ctx.JSON(http.StatusBadRequest,
-			gin.H{"code": http.StatusBadRequest, "message": "Bind json error.", "token": GenerateUserToken(lastUserId)})
-		return
-	}
-	if userItem.Name == "" {
-		log.Printf("Manager.RequestLogin: User Logout: %v\n", userItem.Name)
-
-		ctx.JSON(http.StatusOK,
-			gin.H{"code": http.StatusOK, "message": "Logout successfully.", "token": GenerateNoUserToken()})
-		return
-	}
-
-	userId, code := manager.UserLogin(userItem)
-	if code == StatusDatabaseCommandOK {
-		log.Printf("Manager.RequestLogin: User login successfully: %v\n", userItem.Name)
-
-		ctx.JSON(http.StatusOK, gin.H{"status": "OK", "userId": code,
-			"token": GenerateUserToken(userId)})
-		manager.updateUserItemInfo(userId)
-	} else {
-		if code == StatusDatabaseSelectNotFound {
-			ctx.JSON(http.StatusBadRequest,
-				gin.H{"code": http.StatusBadRequest, "message": "用户名或密码错误", "token": GenerateUserToken(lastUserId)})
-		} else {
-			ctx.JSON(http.StatusInternalServerError,
-				gin.H{"code": http.StatusInternalServerError, "message": "Error", "token": GenerateUserToken(lastUserId)})
-		}
-	}
-}
-
-func (manager *Manager) RequestGetCurrentUser(ctx *gin.Context) {
-	userId := handler.GetUserIdFromToken(ctx)
-	if userId == -1 {
-		ctx.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "", "userinfo": gin.H{"userid": userId, "username": "", "todoCount": 0}})
-		return
-	}
-	item, code := manager.GetUserInfo(userId)
-	if code == StatusDatabaseSelectNotFound {
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": http.StatusBadRequest, "message": "User not found."})
-	} else if code == StatusDatabaseCommandError {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError, "message": "Internal server error."})
-	} else {
-		ctx.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "", "userinfo": item})
-	}
-}
-
-func (manager *Manager) RequestDeleteUser(ctx *gin.Context) {
-	userId := handler.GetUserIdFromToken(ctx)
-	if userId == -1 {
-		ctx.JSON(http.StatusUnauthorized,
-			gin.H{"code": http.StatusUnauthorized, "message": "Not login", "token": GenerateNoUserToken()})
-	}
-	code := manager.DeleteUser(userId)
-	if code != StatusDatabaseCommandOK {
-		ctx.JSON(http.StatusInternalServerError,
-			gin.H{"code": http.StatusInternalServerError, "message": "Internal server error.", "token": GenerateUserToken(userId)})
-		return
-	}
-	ctx.JSON(http.StatusOK,
-		gin.H{"code": http.StatusOK, "message": "", "token": GenerateNoUserToken()})
-}
-
-func (manager *Manager) RequestAddItem(ctx *gin.Context) {
-	var item RequestTodoItem
-	var err error
-	userId := handler.GetUserIdFromToken(ctx)
-	if userId == -1 {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"code": http.StatusUnauthorized, "message": "Not login."})
-		return
-	}
-
-	err = ctx.ShouldBindJSON(&item)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": http.StatusBadRequest, "message": "Bind json error."})
-		return
-	}
-
-	itemId, code := manager.AddItem(userId, RequestToTodoItem(item))
-	if code == StatusDatabaseCommandOK {
-		ctx.JSON(http.StatusOK, gin.H{"status": "OK", "userId": userId, "itemId": itemId})
-	} else {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"code": http.StatusInternalServerError,
-			"message": "Internal server error when insert item."})
-	}
-}
-
-func (manager *Manager) RequestGetItemById(ctx *gin.Context) {
-	itemId, err := strconv.Atoi(ctx.Param("id"))
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"code": http.StatusBadRequest, "message": "Param id error."})
-		return
-	}
-
-	userId := handler.GetUserIdFromToken(ctx)
-	if userId == -1 {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"code": http.StatusUnauthorized, "message": "Not login."})
-		return
-	}
-
-	todoDatabaseItem, code := manager.GetItemById(userId, itemId)
-	if code == StatusDatabaseCommandOK {
-		requestItem := DatabaseToRequestTodoItem(todoDatabaseItem)
-		ctx.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "item": requestItem})
-	} else if code == StatusDatabaseSelectNotFound {
-		ctx.JSON(http.StatusNotFound, gin.H{"code": http.StatusNotFound, "message": "Item not found."})
-	} else {
-		ctx.JSON(http.StatusInternalServerError,
-			gin.H{"code": http.StatusInternalServerError, "message": "Internal server error."})
-	}
-}
-
-func (manager *Manager) RequestGetAllItem(ctx *gin.Context) {
-	userId := handler.GetUserIdFromToken(ctx)
-	if userId == -1 {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"code": http.StatusUnauthorized, "message": "Not login."})
-		return
-	}
-
-	databaseItemList, code := manager.GetAllItem(userId)
-	if code == StatusDatabaseCommandError {
-		log.Println("Manager.RequestGetAllItem: Error when select from database.")
-		ctx.JSON(http.StatusInternalServerError,
-			gin.H{"code": http.StatusInternalServerError, "message": "Error when select from database"})
-		return
-	}
-	requestItemList := make([]RequestTodoItem, len(databaseItemList))
-	for index, databaseItem := range databaseItemList {
-		requestItemList[index] = DatabaseToRequestTodoItem(databaseItem)
-	}
-	ctx.JSON(http.StatusOK,
-		gin.H{"code": http.StatusOK, "item": requestItemList})
 }

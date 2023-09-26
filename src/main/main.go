@@ -23,11 +23,13 @@ func main() {
 
 	manager := Todo.Manager{}
 	manager.Init()
+	defer manager.End()
 
 	// items
 	r.GET("/todo/item/:id", manager.RequestGetItemById)
-	r.GET("/todo/item", manager.RequestGetAllItem)
+	r.GET("/todo/item", manager.RequestGetItems)
 	r.PUT("/todo/item", manager.RequestAddItem)
+	r.POST("/todo/item", manager.RequestUpdateItem)
 
 	r.GET("/todo/user", manager.RequestGetCurrentUser)
 	r.PUT("/todo/user", manager.RequestRegisterUser)
