@@ -26,7 +26,7 @@ func GetUserRefreshTokenStringFromContext(ctx *gin.Context) string {
 	return s.(string)
 }
 
-func GenerateUserTokenBasic(userid int, expiresAt int64) string {
+func GenerateUserTokenBasic(userid int64, expiresAt int64) string {
 	var claims handler.UserClaims
 	claims.Id = userid
 	claims.ExpiresAt = expiresAt
@@ -34,11 +34,11 @@ func GenerateUserTokenBasic(userid int, expiresAt int64) string {
 	return handler.GenerateToken(&claims)
 }
 
-func GenerateUserToken(userid int) string {
+func GenerateUserToken(userid int64) string {
 	return GenerateUserTokenBasic(userid, time.Now().Add(UserTokenValidity).Unix())
 }
 
-func GenerateUserRefreshToken(userid int) string {
+func GenerateUserRefreshToken(userid int64) string {
 	return GenerateUserTokenBasic(userid, time.Now().Add(UserRefreshTokenValidity).Unix())
 }
 

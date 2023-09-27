@@ -1,9 +1,10 @@
 package Todo
 
 type DataBaseUserItem struct {
-	Id       int    `db:"id"`
-	Name     string `db:"username"`
-	Password string `db:"password"`
+	Id        int64  `db:"id"`
+	Name      string `db:"username"`
+	Password  string `db:"password"`
+	TodoCount int64  `db:"todocount"`
 }
 
 type DataBaseTodoItem struct {
@@ -12,8 +13,8 @@ type DataBaseTodoItem struct {
 	CreateTime string `db:"create_time"`
 	Deadline   string `db:"deadline"`
 	Tag        string `db:"tag"`
-	KeyId      int    `db:"keyid"`
-	Id         int    `db:"id"`
-	UserId     int    `db:"userid"`
+	KeyId      int64  `db:"keyid"`
+	Id         int64  `db:"id"`
+	UserId     int64  `db:"userid"`
 	Done       bool   `db:"done"`
 }

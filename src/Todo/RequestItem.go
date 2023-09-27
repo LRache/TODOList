@@ -6,7 +6,7 @@ import (
 )
 
 type RequestTodoItem struct {
-	Id         int    `json:"id"`
+	Id         int64  `json:"id"`
 	Title      string `json:"title"`
 	Content    string `json:"content"`
 	CreateTime string `json:"createTime"`
@@ -26,7 +26,7 @@ func (requestItem *RequestTodoItem) Output() {
 
 type RequestUpdateTodoItem struct {
 	UpdateKeys []string `json:"updateKeys"`
-	ItemId     int      `json:"itemId"`
+	ItemId     int64    `json:"itemId"`
 	Title      string   `json:"title"`
 	Content    string   `json:"content"`
 	CreateTime string   `json:"createTime"`
@@ -106,8 +106,8 @@ type RequestLoginUserItem struct {
 
 type RequestUserInfoItem struct {
 	Name      string `json:"username"`
-	UserId    int    `json:"userid"`
-	TodoCount int    `json:"todoCount"`
+	UserId    int64  `json:"userid"`
+	TodoCount int64  `json:"todoCount"`
 }
 
 type RequestGetItemsItem struct {

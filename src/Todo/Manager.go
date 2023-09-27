@@ -2,6 +2,7 @@ package Todo
 
 import (
 	"fmt"
+	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"log"
@@ -11,17 +12,14 @@ import (
 type Manager struct {
 	UserNameList []string
 	database     *sqlx.DB
+	redisClient  *redis.Client
 
-	userCount   int64
-	emptyUserId []int
-	itemCount   map[int]int
-	emptyItemId map[int][]int
+	userCount int64
+	itemCount map[int64]int64
 }
 
 func (manager *Manager) Init() {
-	manager.emptyUserId = []int{}
-	manager.itemCount = map[int]int{}
-	manager.emptyItemId = map[int][]int{}
+	manager.itemCount = map[int64]int64{}
 
 	db, err := sqlx.Open("mysql", "root:85864546@tcp(127.0.0.1:3306)/TODODATA")
 	if err != nil {
@@ -29,6 +27,12 @@ func (manager *Manager) Init() {
 		return
 	}
 	manager.database = db
+
+	manager.redisClient = redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       1,
+	})
 
 	err = manager.database.QueryRow("SELECT COUNT(*) FROM Users").Scan(&manager.userCount)
 	if err != nil {
@@ -40,10 +44,10 @@ func (manager *Manager) Init() {
 }
 
 func (manager *Manager) End() {
-	manager.database.Close()
+	_ = manager.database.Close()
 }
 
-func (manager *Manager) isUserExists(user string) bool {
+func (manager *Manager) isUserNameExists(user string) bool {
 	var userItems []DataBaseUserItem
 	err := manager.database.Select(&userItems, "SELECT * FROM Users WHERE username = ? LIMIT 1", user)
 	if err != nil {
@@ -52,7 +56,16 @@ func (manager *Manager) isUserExists(user string) bool {
 	return len(userItems) != 0
 }
 
-func (manager *Manager) isTodoItemExists(userId int, itemId int) bool {
+func (manager *Manager) isUserIdExists(userid int) bool {
+	var userItems []DataBaseUserItem
+	err := manager.database.Select(&userItems, "SELECT * FROM Users WHERE id = ? LIMIT 1", userid)
+	if err != nil {
+		return false
+	}
+	return len(userItems) != 0
+}
+
+func (manager *Manager) isTodoItemExists(userId int64, itemId int64) bool {
 	var count int
 	err := manager.database.QueryRow("SELECT COUNT(*) FROM todo WHERE userid = ? AND id = ?", userId, itemId).Scan(&count)
 	if err != nil {
@@ -62,15 +75,14 @@ func (manager *Manager) isTodoItemExists(userId int, itemId int) bool {
 	return count != 0
 }
 
-func (manager *Manager) updateUserItemInfo(userId int) {
+func (manager *Manager) updateUserItemInfo(userId int64) {
 	_, c := manager.itemCount[userId]
 	if c {
 		return
 	}
 	var itemCount int64
-	manager.database.QueryRow("SELECT COUNT(*) FROM todo WHERE userid = ?", userId).Scan(&itemCount)
-	manager.itemCount[userId] = int(itemCount)
-	manager.emptyItemId[userId] = make([]int, 0)
+	_ = manager.database.QueryRow("SELECT COUNT(*) FROM todo WHERE userid = ?", userId).Scan(&itemCount)
+	manager.itemCount[userId] = itemCount
 	log.Printf("Manager.updateUserItemInfo: userid=%v itemCount=%v\n", userId, itemCount)
 }
 
@@ -85,15 +97,13 @@ func (manager *Manager) OutputUsers() {
 	}
 }
 
-func (manager *Manager) AddItem(userId int, todoItem Item) (int, int) {
-	var newItemId int
+func (manager *Manager) AddItem(userId int64, todoItem Item) (int64, int) {
+	var newItemId int64
 	// Allocate item id
-	emptyItemId, contains := manager.emptyItemId[userId]
-	if !contains || len(emptyItemId) == 0 {
+	if manager.redisClient.LLen(fmt.Sprintf("EmptyItemId:%d", userId)).Val() == 0 {
 		newItemId = manager.itemCount[userId]
 	} else {
-		newItemId = emptyItemId[0]
-		manager.emptyItemId[userId] = emptyItemId[1:]
+		_ = manager.redisClient.LPop(fmt.Sprintf("EmptyItemId:%d", userId)).Scan(&newItemId)
 	}
 
 	// Insert item into database
@@ -108,7 +118,7 @@ func (manager *Manager) AddItem(userId int, todoItem Item) (int, int) {
 	return newItemId, StatusDatabaseCommandOK
 }
 
-func (manager *Manager) GetItemById(userId int, itemId int) (DataBaseTodoItem, int) {
+func (manager *Manager) GetItemById(userId int64, itemId int64) (DataBaseTodoItem, int) {
 	var todoItems []DataBaseTodoItem
 	err := manager.database.Select(&todoItems,
 		"SELECT * FROM todo WHERE userId=? AND id=? LIMIT 1", userId, itemId)
@@ -123,7 +133,7 @@ func (manager *Manager) GetItemById(userId int, itemId int) (DataBaseTodoItem, i
 	return todoItems[0], StatusDatabaseCommandOK
 }
 
-func (manager *Manager) GetItems(userId int, requestItem RequestGetItemsItem) ([]DataBaseTodoItem, int) {
+func (manager *Manager) GetItems(userId int64, requestItem RequestGetItemsItem) ([]DataBaseTodoItem, int) {
 	itemList := make([]DataBaseTodoItem, 0)
 	command := fmt.Sprintf("SELECT * FROM todo WHERE %s",
 		strings.Join(append(requestItem.ToSqlSelectWhereCommandStrings(),
@@ -136,7 +146,7 @@ func (manager *Manager) GetItems(userId int, requestItem RequestGetItemsItem) ([
 	return itemList, StatusDatabaseCommandOK
 }
 
-func (manager *Manager) DeleteItemById(userId int, itemId int) int {
+func (manager *Manager) DeleteItemById(userId int64, itemId int64) int {
 	// Ensure item exists
 	if !manager.isTodoItemExists(userId, itemId) {
 		return StatusDatabaseSelectNotFound
@@ -148,17 +158,12 @@ func (manager *Manager) DeleteItemById(userId int, itemId int) int {
 		return StatusDatabaseCommandError
 	} else {
 		// Record empty item id.
-		emptyItemIdList, contains := manager.emptyItemId[userId]
-		if contains {
-			manager.emptyItemId[userId] = []int{itemId}
-		} else {
-			manager.emptyItemId[userId] = append(emptyItemIdList, itemId)
-		}
+		manager.redisClient.LPush(fmt.Sprintf("EmptyItemId:%d", userId), itemId)
 		return StatusDatabaseCommandOK
 	}
 }
 
-func (manager *Manager) UpdateItem(userId int, itemId int, values map[string]string) int {
+func (manager *Manager) UpdateItem(userId int64, itemId int64, values map[string]string) int {
 	// Ensure item exists.
 	if !manager.isTodoItemExists(userId, itemId) {
 		return StatusDatabaseSelectNotFound
@@ -183,15 +188,14 @@ func (manager *Manager) UpdateItem(userId int, itemId int, values map[string]str
 	return StatusDatabaseCommandOK
 }
 
-func (manager *Manager) AddUser(user RequestLoginUserItem) int {
-	var newUserId int
-	if len(manager.emptyUserId) == 0 {
-		newUserId = int(manager.userCount)
+func (manager *Manager) AddUser(user RequestLoginUserItem) int64 {
+	var newUserId int64
+	if manager.redisClient.LLen("EmptyUserId").Val() == 0 {
+		newUserId = manager.userCount
 	} else {
-		newUserId = manager.emptyUserId[0]
-		manager.emptyUserId = manager.emptyUserId[1:]
+		_ = manager.redisClient.LPop("EmptyUserId").Scan(&newUserId)
 	}
-	_, err := manager.database.Exec("INSERT INTO Users(id, username, password) values(?, ?, ?)",
+	_, err := manager.database.Exec("INSERT INTO Users(id, username, password, todocount) values(?, ?, ?, 0)",
 		newUserId, user.Name, toMd5(user.Password))
 	if err != nil {
 		log.Printf("Manager.AddUser: Error when insert user into database: %v\n", err.Error())
@@ -201,7 +205,7 @@ func (manager *Manager) AddUser(user RequestLoginUserItem) int {
 	return newUserId
 }
 
-func (manager *Manager) UserLogin(user RequestLoginUserItem) (int, int) {
+func (manager *Manager) UserLogin(user RequestLoginUserItem) (int64, int) {
 	var userItems []DataBaseUserItem
 	passwordMd5 := toMd5(user.Password)
 	err := manager.database.Select(&userItems, "SELECT * FROM users WHERE username = ? AND password = ? LIMIT 1",
@@ -217,7 +221,7 @@ func (manager *Manager) UserLogin(user RequestLoginUserItem) (int, int) {
 	return userItems[0].Id, StatusDatabaseCommandOK
 }
 
-func (manager *Manager) GetUserInfo(userId int) (RequestUserInfoItem, int) {
+func (manager *Manager) GetUserInfo(userId int64) (RequestUserInfoItem, int) {
 	var databaseItems []DataBaseUserItem
 	var item RequestUserInfoItem
 
@@ -233,7 +237,7 @@ func (manager *Manager) GetUserInfo(userId int) (RequestUserInfoItem, int) {
 	item.UserId = databaseItem.Id
 	item.Name = databaseItem.Name
 
-	var todoCount int
+	var todoCount int64
 	err = manager.database.QueryRow("SELECT COUNT(*) FROM todo WHERE userid = ?", userId).Scan(&todoCount)
 	if err != nil {
 		log.Printf("Manager.GetUserInfo: Error when select from database: %v\n", err.Error())
@@ -244,24 +248,21 @@ func (manager *Manager) GetUserInfo(userId int) (RequestUserInfoItem, int) {
 	return item, StatusDatabaseCommandOK
 }
 
-func (manager *Manager) DeleteUser(userId int) int {
+func (manager *Manager) DeleteUser(userId int64) int {
 	var err error
 
 	// Ensure user exists.
 	var userItems []DataBaseUserItem
 	err = manager.database.Select(&userItems, "SELECT * FROM Users WHERE id = ? LIMIT 1", userId)
 	if err != nil {
-		log.Println("Manager.DeleteUser: Error when select from database: ", err.Error())
+		log.Printf("Manager.DeleteUser: Error when select from database: %v", err.Error())
 		return StatusDatabaseCommandError
-	}
-	if len(userItems) == 0 {
-		return StatusDatabaseSelectNotFound
 	}
 
 	// Delete from database.
 	_, err = manager.database.Exec("DELETE FROM users WHERE id = ?", userId)
 	if err != nil {
-		log.Println("Manager.DeleteUser: Error when delete from database: ", err.Error())
+		log.Printf("Manager.DeleteUser: Error when delete from database: %v", err.Error())
 		return StatusDatabaseCommandError
 	}
 	_, err = manager.database.Exec("DELETE FROM todo WHERE userid = ?", userId)
@@ -271,6 +272,6 @@ func (manager *Manager) DeleteUser(userId int) int {
 
 	// Record empty user id.
 	userInfo := userItems[0]
-	manager.emptyUserId = append(manager.emptyUserId, userInfo.Id)
+	manager.redisClient.LPush("EmptyUserId", userInfo.Id)
 	return StatusDatabaseCommandOK
 }

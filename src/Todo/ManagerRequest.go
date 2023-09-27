@@ -35,7 +35,7 @@ func (manager *Manager) RequestAddItem(ctx *gin.Context) {
 }
 
 func (manager *Manager) RequestGetItemById(ctx *gin.Context) {
-	itemId, err := strconv.Atoi(ctx.Param("id"))
+	itemId, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": http.StatusBadRequest, "message": "Param id error."})
 		return
@@ -130,7 +130,7 @@ func (manager *Manager) RequestUpdateItem(ctx *gin.Context) {
 }
 
 func (manager *Manager) RequestDeleteItemById(ctx *gin.Context) {
-	itemId, err := strconv.Atoi(ctx.Param("id"))
+	itemId, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		ctx.JSON(
 			http.StatusBadRequest,
@@ -209,7 +209,7 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 		return
 	}
 	// Judge whether the username exists
-	if manager.isUserExists(userItem.Name) {
+	if manager.isUserNameExists(userItem.Name) {
 		log.Printf("Manager.RequestRegisterUser: User exists: %v\n", userItem.Name)
 		ctx.JSON(
 			http.StatusBadRequest,

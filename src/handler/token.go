@@ -8,7 +8,7 @@ import (
 )
 
 type UserClaims struct {
-	Id int `json:"userid"`
+	Id int64 `json:"userid"`
 	jwt.StandardClaims
 }
 
@@ -52,7 +52,7 @@ func ParseToken(tokenString string) *UserClaims {
 	}
 }
 
-func GetUserIdFromToken(ctx *gin.Context) int {
+func GetUserIdFromToken(ctx *gin.Context) int64 {
 	userClaimsInterface, ok := ctx.Get("userClaims")
 	if !ok {
 		log.Printf("Manager.RequestGetAllItem: Token error.")
@@ -69,7 +69,7 @@ func GetUserIdFromToken(ctx *gin.Context) int {
 	}
 }
 
-func GetUserIdFromTokenIgnoreExpiration(ctx *gin.Context) (int, bool) {
+func GetUserIdFromTokenIgnoreExpiration(ctx *gin.Context) (int64, bool) {
 	userClaimsInterface, ok := ctx.Get("userClaims")
 	if !ok {
 		log.Printf("Manager.RequestGetAllItem: Token error.")
