@@ -1,11 +1,10 @@
 package ServerManager
 
 import (
-	"TODOList/src/TodoItem"
+	"TODOList/src/Item"
 	"TODOList/src/globals"
 	"TODOList/src/handler"
 	"TODOList/src/utils"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/wonderivan/logger"
 	"log"
@@ -32,7 +31,7 @@ func (manager *Manager) RequestAddItem(ctx *gin.Context) {
 		return
 	}
 
-	var item TodoItem.RequestTodoItem
+	var item Item.RequestTodoItem
 	var err error
 	err = ctx.ShouldBindJSON(&item)
 	if err != nil {
@@ -41,14 +40,15 @@ func (manager *Manager) RequestAddItem(ctx *gin.Context) {
 		return
 	}
 
-	itemId, code := manager.AddItem(userId, TodoItem.RequestToTodoItem(item))
+	itemId, code := manager.AddItem(userId, Item.RequestToTodoItem(item))
 	if code == globals.StatusDatabaseCommandOK {
 		ctx.JSON(
-			http.StatusOK,
+			http.StatusCreated,
 			gin.H{
-				"code":   http.StatusOK,
-				"userId": userId,
-				"itemId": itemId,
+				"code":    http.StatusCreated,
+				"message": "",
+				"userId":  userId,
+				"itemId":  itemId,
 			})
 	} else {
 		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
@@ -71,7 +71,7 @@ func (manager *Manager) RequestGetItemById(ctx *gin.Context) {
 
 	todoDatabaseItem, code := manager.GetItemById(userId, itemId)
 	if code == globals.StatusDatabaseCommandOK {
-		requestItem := TodoItem.DatabaseToRequestTodoItem(todoDatabaseItem)
+		requestItem := Item.DatabaseToRequestTodoItem(todoDatabaseItem)
 		ctx.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "item": requestItem})
 	} else if code == globals.StatusDatabaseSelectNotFound {
 		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
@@ -87,14 +87,13 @@ func (manager *Manager) RequestGetItems(ctx *gin.Context) {
 		return
 	}
 
-	var requestItem TodoItem.RequestGetItemsItem
+	var requestItem Item.RequestGetItemsItem
 	err := ctx.ShouldBindQuery(&requestItem)
 	if err != nil {
 		logger.Warn("(RequestGetItems)Error when bind query: %v", err.Error())
 		ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
 		return
 	}
-	fmt.Println(requestItem)
 
 	items, code := manager.GetItems(userid, requestItem)
 	if code == globals.StatusDatabaseCommandError {
@@ -104,7 +103,7 @@ func (manager *Manager) RequestGetItems(ctx *gin.Context) {
 			gin.H{
 				"code":    http.StatusOK,
 				"message": "",
-				"items":   TodoItem.ListDatabaseToRequestTodoItem(items),
+				"items":   Item.ListDatabaseToRequestTodoItem(items),
 			})
 	}
 }
@@ -117,7 +116,7 @@ func (manager *Manager) RequestUpdateItem(ctx *gin.Context) {
 	}
 
 	// Parse body
-	var requestItem TodoItem.RequestUpdateTodoItem
+	var requestItem Item.RequestUpdateTodoItem
 	err := ctx.ShouldBindJSON(&requestItem)
 	if err != nil {
 		logger.Warn("(RequestUpdateItem)Error when bind body json: %v", err.Error())
@@ -161,7 +160,7 @@ func (manager *Manager) RequestDeleteItemById(ctx *gin.Context) {
 
 // RequestRegisterUser send user token in json and fresh refreshToken
 func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
-	var userItem TodoItem.RequestLoginUserItem
+	var userItem Item.RequestLoginUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
 		logger.Warn("(RequestRegisterUser)Error when bind body json to userItem: %v", err.Error())
@@ -178,7 +177,7 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 
 	// Judge whether the username is valid
 	if !utils.IsValidUsername(userItem.Name) {
-		log.Printf("Manager.RequestRegisterUser: Invalid username: %v\n", userItem.Name)
+		logger.Info("(RequestRegisterUser)Invalid username: %v", userItem.Name)
 		ctx.JSON(
 			http.StatusBadRequest,
 			gin.H{
@@ -229,7 +228,7 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 
 // RequestLogin send token in json and fresh refresh token.
 func (manager *Manager) RequestLogin(ctx *gin.Context) {
-	var userItem TodoItem.RequestLoginUserItem
+	var userItem Item.RequestLoginUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
 		log.Printf("Manager.RequestLogin: Error when bind json: %v\n", err.Error())

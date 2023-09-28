@@ -1,4 +1,4 @@
-package TodoItem
+package Item
 
 type DataBaseUserItem struct {
 	Id        int64  `db:"id"`

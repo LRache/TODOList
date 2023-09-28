@@ -3,7 +3,6 @@ package utils
 import (
 	"TODOList/src/globals"
 	"TODOList/src/handler"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"time"
 )
@@ -31,7 +30,6 @@ func GenerateUserTokenBasic(userid int64, expiresAt int64) string {
 	var claims handler.UserClaims
 	claims.Id = userid
 	claims.ExpiresAt = expiresAt
-	fmt.Printf("GenerateUserTokenBasic: Generate claims expire = %v\n", expiresAt)
 	return handler.GenerateToken(&claims)
 }
 

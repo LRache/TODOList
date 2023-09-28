@@ -1,7 +1,7 @@
 package ServerManager
 
 import (
-	"TODOList/src/TodoItem"
+	"TODOList/src/Item"
 	"TODOList/src/globals"
 	"TODOList/src/utils"
 	"fmt"
@@ -63,7 +63,7 @@ func (manager *Manager) End() {
 }
 
 func (manager *Manager) isUserNameExists(user string) bool {
-	var userItems []TodoItem.DataBaseUserItem
+	var userItems []Item.DataBaseUserItem
 	err := manager.database.Select(&userItems, "SELECT * FROM Users WHERE username = ? LIMIT 1", user)
 	if err != nil {
 		return false
@@ -72,7 +72,7 @@ func (manager *Manager) isUserNameExists(user string) bool {
 }
 
 func (manager *Manager) isUserIdExists(userid int) bool {
-	var userItems []TodoItem.DataBaseUserItem
+	var userItems []Item.DataBaseUserItem
 	err := manager.database.Select(&userItems, "SELECT * FROM Users WHERE id = ? LIMIT 1", userid)
 	if err != nil {
 		return false
@@ -102,7 +102,7 @@ func (manager *Manager) updateUserItemInfo(userId int64) {
 }
 
 func (manager *Manager) OutputUsers() {
-	var userItems []TodoItem.DataBaseUserItem
+	var userItems []Item.DataBaseUserItem
 	err := manager.database.Select(&userItems, "SELECT * FROM Users")
 	if err != nil {
 		logger.Error("Error at select users from database: ", err.Error())
@@ -113,7 +113,7 @@ func (manager *Manager) OutputUsers() {
 }
 
 // AddItem return new item id and result code
-func (manager *Manager) AddItem(userId int64, todoItem TodoItem.Item) (int64, int) {
+func (manager *Manager) AddItem(userId int64, todoItem Item.Item) (int64, int) {
 	var newItemId int64
 	// Allocate item id
 	if manager.redisClient.LLen(fmt.Sprintf("EmptyItemId:%d", userId)).Val() == 0 {
@@ -136,27 +136,27 @@ func (manager *Manager) AddItem(userId int64, todoItem TodoItem.Item) (int64, in
 }
 
 // GetItemById return item list and result code.
-func (manager *Manager) GetItemById(userId int64, itemId int64) (TodoItem.DataBaseTodoItem, int) {
+func (manager *Manager) GetItemById(userId int64, itemId int64) (Item.DataBaseTodoItem, int) {
 	// Select item from database
 	logger.Trace("(GetItemById)Select item from database, userId = %v, itemId = %v", userId, itemId)
-	var todoItems []TodoItem.DataBaseTodoItem
+	var todoItems []Item.DataBaseTodoItem
 	err := manager.database.Select(&todoItems,
 		"SELECT * FROM todo WHERE userId=? AND id=? LIMIT 1", userId, itemId)
 	if err != nil {
 		logger.Error("Error when select items from database: %v", err.Error())
-		return TodoItem.DataBaseTodoItem{}, globals.StatusDatabaseCommandError
+		return Item.DataBaseTodoItem{}, globals.StatusDatabaseCommandError
 	}
 
 	if len(todoItems) == 0 {
 		logger.Warn("Item not found: %v\n", itemId)
-		return TodoItem.DataBaseTodoItem{}, globals.StatusDatabaseSelectNotFound
+		return Item.DataBaseTodoItem{}, globals.StatusDatabaseSelectNotFound
 	}
 	logger.Trace("(GetItemById)Select item from database successfully, userId = %v, itemId = %v", userId, itemId)
 	return todoItems[0], globals.StatusDatabaseCommandOK
 }
 
 // GetItems return item list and result code.
-func (manager *Manager) GetItems(userId int64, requestItem TodoItem.RequestGetItemsItem) ([]TodoItem.DataBaseTodoItem, int) {
+func (manager *Manager) GetItems(userId int64, requestItem Item.RequestGetItemsItem) ([]Item.DataBaseTodoItem, int) {
 	// Generate select command.
 	command := fmt.Sprintf("SELECT * FROM todo WHERE %s",
 		strings.Join(append(requestItem.ToSqlSelectWhereCommandStrings(),
@@ -164,7 +164,7 @@ func (manager *Manager) GetItems(userId int64, requestItem TodoItem.RequestGetIt
 
 	// Select items from database.
 	logger.Trace("(GetItems)Select items from database, sqlCommand = \"%v\"", command)
-	itemList := make([]TodoItem.DataBaseTodoItem, 0)
+	itemList := make([]Item.DataBaseTodoItem, 0)
 	err := manager.database.Select(&itemList, command)
 	if err != nil {
 		logger.Error("(GetItems)Error when select items from database: %v", err.Error())
@@ -226,7 +226,7 @@ func (manager *Manager) UpdateItem(userId int64, itemId int64, values map[string
 }
 
 // AddUser return new user id, -1 for failure.
-func (manager *Manager) AddUser(user TodoItem.RequestLoginUserItem) int64 {
+func (manager *Manager) AddUser(user Item.RequestLoginUserItem) int64 {
 	var newUserId int64
 	// Allocate new user id
 	if manager.redisClient.LLen("EmptyUserId").Val() == 0 {
@@ -250,12 +250,12 @@ func (manager *Manager) AddUser(user TodoItem.RequestLoginUserItem) int64 {
 }
 
 // UserLogin return userid and result code.
-func (manager *Manager) UserLogin(user TodoItem.RequestLoginUserItem) (int64, int) {
+func (manager *Manager) UserLogin(user Item.RequestLoginUserItem) (int64, int) {
 	// Select from database
-	var userItems []TodoItem.DataBaseUserItem
+	var userItems []Item.DataBaseUserItem
 	passwordMd5 := utils.StringToMd5(user.Password)
 
-	logger.Trace("(UserLogin)User login: username = %v, passwordMd5 = %v", user, passwordMd5)
+	logger.Trace("(UserLogin)User login: username = %v, passwordMd5 = %v", user.Name, passwordMd5)
 	err := manager.database.Select(&userItems, "SELECT * FROM users WHERE username = ? AND password = ? LIMIT 1",
 		user.Name, passwordMd5)
 	if err != nil {
@@ -272,10 +272,10 @@ func (manager *Manager) UserLogin(user TodoItem.RequestLoginUserItem) (int64, in
 }
 
 // GetUserInfo return user info item and result code.
-func (manager *Manager) GetUserInfo(userId int64) (TodoItem.RequestUserInfoItem, int) {
+func (manager *Manager) GetUserInfo(userId int64) (Item.RequestUserInfoItem, int) {
 	// Select user from database
-	var databaseItems []TodoItem.DataBaseUserItem
-	var item TodoItem.RequestUserInfoItem
+	var databaseItems []Item.DataBaseUserItem
+	var item Item.RequestUserInfoItem
 	logger.Trace("(GetUserInfo)Select user from database: userId = %v", userId)
 	err := manager.database.Select(&databaseItems, "SELECT * FROM users WHERE id = ?", userId)
 	if err != nil {
@@ -310,7 +310,7 @@ func (manager *Manager) DeleteUser(userId int64) int {
 	var err error
 
 	// Ensure user exists.
-	var userItems []TodoItem.DataBaseUserItem
+	var userItems []Item.DataBaseUserItem
 	err = manager.database.Select(&userItems, "SELECT * FROM Users WHERE id = ? LIMIT 1", userId)
 	if err != nil {
 		logger.Error("(DeleteUser)Error when select from database: %v", err.Error())

@@ -1,4 +1,4 @@
-package TodoItem
+package Item
 
 type Item struct {
 	Title      string

@@ -1,4 +1,4 @@
-package TodoItem
+package Item
 
 import (
 	"fmt"
