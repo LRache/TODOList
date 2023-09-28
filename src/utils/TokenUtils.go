@@ -1,6 +1,7 @@
-package Todo
+package utils
 
 import (
+	"TODOList/src/globals"
 	"TODOList/src/handler"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -35,11 +36,11 @@ func GenerateUserTokenBasic(userid int64, expiresAt int64) string {
 }
 
 func GenerateUserToken(userid int64) string {
-	return GenerateUserTokenBasic(userid, time.Now().Add(UserTokenValidity).Unix())
+	return GenerateUserTokenBasic(userid, time.Now().Add(globals.UserTokenValidity).Unix())
 }
 
 func GenerateUserRefreshToken(userid int64) string {
-	return GenerateUserTokenBasic(userid, time.Now().Add(UserRefreshTokenValidity).Unix())
+	return GenerateUserTokenBasic(userid, time.Now().Add(globals.UserRefreshTokenValidity).Unix())
 }
 
 func GenerateEmptyUserToken() string {

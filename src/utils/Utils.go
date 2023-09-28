@@ -1,11 +1,11 @@
-package Todo
+package utils
 
 import (
 	"crypto/md5"
 	"fmt"
 )
 
-func isValidUsername(name string) bool {
+func IsValidUsername(name string) bool {
 	if len(name) == 0 {
 		return false
 	}
@@ -22,7 +22,7 @@ func isValidUsername(name string) bool {
 	return count != len(r)
 }
 
-func toMd5(password string) string {
+func StringToMd5(password string) string {
 	data := []byte(password)
 	pwd := md5.Sum(data)
 	return fmt.Sprintf("%x", pwd)

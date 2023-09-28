@@ -1,13 +1,14 @@
 package main
 
 import (
-	"TODOList/src/Todo"
+	"TODOList/src/ServerManager"
+	"TODOList/src/globals"
 	"TODOList/src/handler"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
+	"github.com/gin-gonic/gin"
 	"log"
 )
-import "github.com/gin-gonic/gin"
-import "github.com/gin-contrib/sessions"
-import "github.com/gin-contrib/sessions/cookie"
 
 func initLog() {
 	log.SetPrefix("[SERVER]")
@@ -16,13 +17,14 @@ func initLog() {
 
 func main() {
 	initLog()
+	globals.InitConfigures("./configures.yml")
 
 	r := gin.Default()
 	store := cookie.NewStore([]byte("adecvsefslkhj"))
 	r.Use(sessions.Sessions("UserSession", store))
 	r.Use(handler.JwtVerify)
 
-	manager := Todo.Manager{}
+	manager := ServerManager.Manager{}
 	manager.Init()
 	defer manager.End()
 
@@ -39,5 +41,6 @@ func main() {
 	r.DELETE("/todo/user", manager.RequestDeleteUser)
 	r.POST("/todo/user/token", manager.RequestRefreshToken)
 
-	r.Run("localhost:8080")
+	r.Run(globals.Configures.GetString("server.host") +
+		":" + globals.Configures.GetString("server.port"))
 }

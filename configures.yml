@@ -1,0 +1,13 @@
+server:
+  host: "localhost"
+  port: "8080"
+sql:
+  driverName: "mysql"
+  userName: "root"
+  password: "85864546"
+  address: "localhost:3306"
+  table: "TODODATA"
+redis:
+  address: "localhost:6379"
+  password: ""
+  database: 1
