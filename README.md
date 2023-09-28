@@ -21,6 +21,7 @@
 |:---------:|:--------:|:------:|:----:|
 | Body Json | username | string | 用户名称 |
 | Body Json | password | string | 用户密码 |
+
 返回：
 
 |      字段      |   类型   |         描述          |
@@ -34,8 +35,7 @@
 ### 登录和注销
 路由： `/todo/user`  
 方法：`POST`  
-参数：  
-Body Json
+参数：
 
 |    位置     |    字段    |   类型   |        描述        |
 |:---------:|:--------:|:------:|:----------------:|
@@ -60,6 +60,7 @@ Body Json
 |   位置    |  字段   |   类型   |   描述    |
 |:-------:|:-----:|:------:|:-------:|
 | Headers | token | string | 用户token |
+
 返回：
 
 |         字段         |   类型   |         描述          |
@@ -137,6 +138,7 @@ Body Json
 |:---------:|:----------:|:------:|:--------:|
 |  Headers  |   token    | string | 用户token  |
 |   Path    |     id     |  int   | TODO id  |
+
 返回：
 
 |   字段    |   类型   |     描述      |
@@ -155,6 +157,7 @@ Body Json
 |  Headers  |   token    | string |  用户token   |
 |   Query   |    tag     | string |  留空则不筛选标题  |
 |   Query   |    done    |  bool  | 留空则不筛选是否完成 |
+
 返回：
 
 |   字段    |       类型       |      描述       |
@@ -178,6 +181,7 @@ Body Json
 | Body Json | createTime |    string    |  TODO创建时间  |
 | Body Json |  deadline  |    string    |  TODO截止时间  |
 | Body Json |    done    |     bool     |  TODO是否完成  |
+
 返回：
 
 |      字段      |   类型   |    描述     |
@@ -194,6 +198,7 @@ Body Json
 |:-------:|:-----:|:------:|:-------:|
 | Headers | token | string | 用户token |
 |  Path   |  id   |  int   | TODO id |
+
 返回：
 
 |      字段      |   类型   |    描述     |
