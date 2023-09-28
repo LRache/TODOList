@@ -7,21 +7,25 @@ import (
 	"TODOList/src/utils"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/wonderivan/logger"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 )
 
+// checkUserLogin return -1 if user not login, and set context.
 func checkUserLogin(ctx *gin.Context) int64 {
 	userId := handler.GetUserIdFromToken(ctx)
 	if userId == -1 {
+		logger.Warn("User not login.")
 		ctx.JSON(globals.ReturnJsonUserNotLogin.Code, globals.ReturnJsonUserNotLogin.Json)
 		return -1
 	}
 	return userId
 }
 
+// RequestAddItem send new item id.
 func (manager *Manager) RequestAddItem(ctx *gin.Context) {
 	userId := checkUserLogin(ctx)
 	if userId == -1 {
@@ -32,6 +36,7 @@ func (manager *Manager) RequestAddItem(ctx *gin.Context) {
 	var err error
 	err = ctx.ShouldBindJSON(&item)
 	if err != nil {
+		logger.Warn("(RequestAddItem)Bind body json error: %v", err.Error())
 		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)
 		return
 	}
@@ -50,6 +55,7 @@ func (manager *Manager) RequestAddItem(ctx *gin.Context) {
 	}
 }
 
+// RequestGetItemById send a item using RequestTodoItem type.
 func (manager *Manager) RequestGetItemById(ctx *gin.Context) {
 	userId := checkUserLogin(ctx)
 	if userId == -1 {
@@ -58,6 +64,7 @@ func (manager *Manager) RequestGetItemById(ctx *gin.Context) {
 
 	itemId, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
+		logger.Warn("(RequestGetItemById)Error when parse param: %v", err.Error())
 		ctx.JSON(globals.ReturnJsonParamError.Code, globals.ReturnJsonParamError.Json)
 		return
 	}
@@ -73,6 +80,7 @@ func (manager *Manager) RequestGetItemById(ctx *gin.Context) {
 	}
 }
 
+// RequestGetItems send item list using RequestTodoItem type.
 func (manager *Manager) RequestGetItems(ctx *gin.Context) {
 	userid := checkUserLogin(ctx)
 	if userid == -1 {
@@ -82,7 +90,7 @@ func (manager *Manager) RequestGetItems(ctx *gin.Context) {
 	var requestItem TodoItem.RequestGetItemsItem
 	err := ctx.ShouldBindQuery(&requestItem)
 	if err != nil {
-		log.Printf("Manager.RequestGetItems: Error when bind query: %v\n", err.Error())
+		logger.Warn("(RequestGetItems)Error when bind query: %v", err.Error())
 		ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
 		return
 	}
@@ -101,6 +109,7 @@ func (manager *Manager) RequestGetItems(ctx *gin.Context) {
 	}
 }
 
+// RequestUpdateItem send code and message.
 func (manager *Manager) RequestUpdateItem(ctx *gin.Context) {
 	userId := checkUserLogin(ctx)
 	if userId == -1 {
@@ -111,7 +120,7 @@ func (manager *Manager) RequestUpdateItem(ctx *gin.Context) {
 	var requestItem TodoItem.RequestUpdateTodoItem
 	err := ctx.ShouldBindJSON(&requestItem)
 	if err != nil {
-		log.Printf("Manage.RequestUpdateItem: Error when bind json: %v\n", err.Error())
+		logger.Warn("(RequestUpdateItem)Error when bind body json: %v", err.Error())
 		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)
 	}
 
@@ -134,6 +143,7 @@ func (manager *Manager) RequestDeleteItemById(ctx *gin.Context) {
 
 	itemId, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
+		logger.Warn("(RequestGetItemById)Error when parse param: %v", err.Error())
 		ctx.JSON(globals.ReturnJsonParamError.Code, globals.ReturnJsonParamError.Json)
 		return
 	}
@@ -149,12 +159,12 @@ func (manager *Manager) RequestDeleteItemById(ctx *gin.Context) {
 	}
 }
 
-// RequestRegisterUser Return user token in json and fresh refreshToken
+// RequestRegisterUser send user token in json and fresh refreshToken
 func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 	var userItem TodoItem.RequestLoginUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
-		log.Printf("Manager.RequestRegisterUser: Error when bind json to userItem: %v\n", err.Error())
+		logger.Warn("(RequestRegisterUser)Error when bind body json to userItem: %v", err.Error())
 		ctx.JSON(
 			http.StatusBadRequest,
 			gin.H{
@@ -181,7 +191,7 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 	}
 	// Judge whether the username exists
 	if manager.isUserNameExists(userItem.Name) {
-		log.Printf("Manager.RequestRegisterUser: User exists: %v\n", userItem.Name)
+		logger.Info("(RequestRegisterUser)User exists: %v", userItem.Name)
 		ctx.JSON(
 			http.StatusBadRequest,
 			gin.H{
@@ -217,7 +227,7 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 	}
 }
 
-// RequestLogin Return token in json and fresh refreshToken
+// RequestLogin send token in json and fresh refresh token.
 func (manager *Manager) RequestLogin(ctx *gin.Context) {
 	var userItem TodoItem.RequestLoginUserItem
 	err := ctx.ShouldBindJSON(&userItem)
@@ -236,7 +246,7 @@ func (manager *Manager) RequestLogin(ctx *gin.Context) {
 
 	// If username is empty, logout return empty token in json.
 	if userItem.Name == "" {
-		log.Printf("Manager.RequestLogin: User Logout: %v\n", userItem.Name)
+		logger.Trace("(RequestLogin)User logout: %v\n", userItem.Name)
 		ctx.JSON(
 			http.StatusOK,
 			gin.H{
@@ -291,6 +301,7 @@ func (manager *Manager) RequestGetCurrentUser(ctx *gin.Context) {
 
 	// User not login, return userId=-1 means no user
 	if userId == -1 {
+		logger.Error("(RequestGetCurrentUser)User not login.")
 		ctx.JSON(
 			http.StatusOK,
 			gin.H{
@@ -333,9 +344,11 @@ func (manager *Manager) RequestGetCurrentUser(ctx *gin.Context) {
 	}
 }
 
+// RequestDeleteUser send empty user token if delete successfully.
 func (manager *Manager) RequestDeleteUser(ctx *gin.Context) {
 	userId := handler.GetUserIdFromToken(ctx)
 	if userId == -1 {
+		logger.Error("(RequestDeleteUser)User not login.")
 		ctx.JSON(
 			http.StatusUnauthorized,
 			gin.H{
@@ -364,11 +377,13 @@ func (manager *Manager) RequestDeleteUser(ctx *gin.Context) {
 		})
 }
 
+// RequestRefreshToken judge whether the refresh token has expired then send fresher token.
 func (manager *Manager) RequestRefreshToken(ctx *gin.Context) {
 	userId, b := handler.GetUserIdFromTokenIgnoreExpiration(ctx)
 	// User id error
 	if userId == -1 {
 		if b {
+			logger.Warn("(RequestRefreshToken)Token error.")
 			ctx.JSON(
 				http.StatusBadRequest,
 				gin.H{
@@ -377,6 +392,7 @@ func (manager *Manager) RequestRefreshToken(ctx *gin.Context) {
 					"token":   utils.GetUserTokenFromContext(ctx),
 				})
 		} else {
+			logger.Error("(RequestRefreshToken)User not login.")
 			ctx.JSON(
 				http.StatusUnauthorized,
 				gin.H{
@@ -390,7 +406,7 @@ func (manager *Manager) RequestRefreshToken(ctx *gin.Context) {
 
 	// Get refresh token id
 	c := handler.ParseToken(utils.GetUserRefreshTokenStringFromContext(ctx))
-	log.Printf("Manager.RequestRefreshToken: Refresh token expires at: %v, now: %v\n",
+	logger.Trace("Manager.RequestRefreshToken: Refresh token expires at: %v, now: %v",
 		c.ExpiresAt, time.Now().Unix())
 	// Refresh token expired
 	if c.ExpiresAt < time.Now().Unix() {

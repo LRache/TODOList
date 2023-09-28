@@ -7,40 +7,40 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
-	"log"
+	"github.com/wonderivan/logger"
 )
 
-func initLog() {
-	log.SetPrefix("[SERVER]")
-	log.SetFlags(log.Llongfile | log.Ldate | log.Ltime)
-}
-
 func main() {
-	initLog()
+	globals.InitLogger()
 	globals.InitConfigures("./configures.yml")
 
-	r := gin.Default()
+	router := gin.Default()
 	store := cookie.NewStore([]byte("adecvsefslkhj"))
-	r.Use(sessions.Sessions("UserSession", store))
-	r.Use(handler.JwtVerify)
+	router.Use(sessions.Sessions("UserSession", store))
+	router.Use(handler.JwtVerify)
 
 	manager := ServerManager.Manager{}
 	manager.Init()
 	defer manager.End()
 
 	// items
-	r.GET("/todo/item/:id", manager.RequestGetItemById)
-	r.GET("/todo/item", manager.RequestGetItems)
-	r.PUT("/todo/item", manager.RequestAddItem)
-	r.POST("/todo/item", manager.RequestUpdateItem)
-	r.DELETE("/todo/item/:id", manager.RequestDeleteItemById)
+	itemGroup := router.Group("/todo/item")
+	itemGroup.GET("/:id", manager.RequestGetItemById)
+	itemGroup.GET("", manager.RequestGetItems)
+	itemGroup.PUT("", manager.RequestAddItem)
+	itemGroup.POST("", manager.RequestUpdateItem)
+	itemGroup.DELETE("/:id", manager.RequestDeleteItemById)
 
-	r.GET("/todo/user", manager.RequestGetCurrentUser)
-	r.PUT("/todo/user", manager.RequestRegisterUser)
-	r.POST("/todo/user", manager.RequestLogin)
-	r.DELETE("/todo/user", manager.RequestDeleteUser)
-	r.POST("/todo/user/token", manager.RequestRefreshToken)
+	userGroup := router.Group("/todo/user")
+	userGroup.GET("", manager.RequestGetCurrentUser)
+	userGroup.PUT("", manager.RequestRegisterUser)
+	userGroup.POST("", manager.RequestLogin)
+	userGroup.DELETE("", manager.RequestDeleteUser)
+	userGroup.POST("/token", manager.RequestRefreshToken)
 
-	r.Run(globals.Configures.GetString("server.host") +
+	err := router.Run(globals.Configures.GetString("server.host") +
 		":" + globals.Configures.GetString("server.port"))
+	if err != nil {
+		logger.Emer("Run server error.")
+	}
 }

@@ -17,12 +17,6 @@ const (
 	StatusDatabaseSelectNotFound = 2
 )
 
-const (
-	StatusGetUserIdSuccess = 0
-	StatusUserNotLogin     = 1
-	StatusPhraseIdError    = 2
-)
-
 type ReturnJson struct {
 	Code int
 	Json gin.H
