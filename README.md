@@ -190,12 +190,15 @@
 方法：`GET`  
 参数：
 
-|   位置    |       字段       |   类型   |             描述             |
-|:-------:|:--------------:|:------:|:--------------------------:|
-| Headers |     token      | string |          用户token           |
-|  Query  |      tag       | string |          留空则不筛选标题          |
-|  Query  |      done      |  bool  |         留空则不筛选是否完成         |
-|  Query  | deadlineBefore | string | 筛选截止时间在某时间之前的TODO，留空则表示不筛选 |
+|   位置    |       字段       |   类型   |                  描述                  |
+|:-------:|:--------------:|:------:|:------------------------------------:|
+| Headers |     token      | string |               用户token                |
+|  Query  |      tag       | string |               留空则不筛选标题               |
+|  Query  |      done      |  bool  |              留空则不筛选是否完成              |
+|  Query  | deadlineBefore | string |      筛选截止时间在某时间之前的TODO，留空则表示不筛选      |
+|  Query  |   pageIndex    |  int   |               分页查询时的页数               |
+|  Query  |     limit      |  int   |             一页中最多TODO数量              |
+|  Query  |     order      | string | 排序方式，可选`id` `createTime` `deadline`。 |
 
 返回：
 

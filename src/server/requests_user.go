@@ -1,4 +1,4 @@
-package ServerManager
+package server
 
 import (
 	"TODOList/src/Item"
@@ -7,160 +7,13 @@ import (
 	"TODOList/src/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/wonderivan/logger"
-	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 )
 
-// checkUserLogin return -1 if user not login, and set context.
-func checkUserLogin(ctx *gin.Context) int64 {
-	userId := handler.GetUserIdFromToken(ctx)
-	if userId == -1 {
-		logger.Warn("User not login.")
-		ctx.JSON(globals.ReturnJsonUserNotLogin.Code, globals.ReturnJsonUserNotLogin.Json)
-		return -1
-	}
-	return userId
-}
-
-// RequestAddItem send new item id.
-func (manager *Manager) RequestAddItem(ctx *gin.Context) {
-	userId := checkUserLogin(ctx)
-	if userId == -1 {
-		return
-	}
-
-	var item Item.RequestTodoItem
-	var err error
-	err = ctx.ShouldBindJSON(&item)
-	if err != nil {
-		logger.Warn("(RequestAddItem)Bind body json error: %v", err.Error())
-		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)
-		return
-	}
-
-	itemId, code := manager.AddItem(userId, Item.RequestToTodoItem(item))
-	if code == globals.StatusDatabaseCommandOK {
-		ctx.JSON(
-			http.StatusCreated,
-			gin.H{
-				"code":    http.StatusCreated,
-				"message": "",
-				"userId":  userId,
-				"itemId":  itemId,
-			})
-	} else {
-		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
-	}
-}
-
-// RequestGetItemById send a item using RequestTodoItem type.
-func (manager *Manager) RequestGetItemById(ctx *gin.Context) {
-	userId := checkUserLogin(ctx)
-	if userId == -1 {
-		return
-	}
-
-	itemId, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
-	if err != nil {
-		logger.Warn("(RequestGetItemById)Error when parse param: %v", err.Error())
-		ctx.JSON(globals.ReturnJsonParamError.Code, globals.ReturnJsonParamError.Json)
-		return
-	}
-
-	todoDatabaseItem, code := manager.GetItemById(userId, itemId)
-	if code == globals.StatusDatabaseCommandOK {
-		requestItem := Item.DatabaseToRequestTodoItem(todoDatabaseItem)
-		ctx.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "item": requestItem})
-	} else if code == globals.StatusDatabaseSelectNotFound {
-		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
-	} else {
-		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
-	}
-}
-
-// RequestGetItems send item list using RequestTodoItem type.
-func (manager *Manager) RequestGetItems(ctx *gin.Context) {
-	userid := checkUserLogin(ctx)
-	if userid == -1 {
-		return
-	}
-
-	var requestItem Item.RequestGetItemsItem
-	err := ctx.ShouldBindQuery(&requestItem)
-	if err != nil {
-		logger.Warn("(RequestGetItems)Error when bind query: %v", err.Error())
-		ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
-		return
-	}
-
-	items, code := manager.GetItems(userid, requestItem)
-	if code == globals.StatusDatabaseCommandError {
-		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
-	} else {
-		ctx.JSON(http.StatusOK,
-			gin.H{
-				"code":    http.StatusOK,
-				"message": "",
-				"items":   Item.ListDatabaseToRequestTodoItem(items),
-			})
-	}
-}
-
-// RequestUpdateItem send code and message.
-func (manager *Manager) RequestUpdateItem(ctx *gin.Context) {
-	userId := checkUserLogin(ctx)
-	if userId == -1 {
-		return
-	}
-
-	// Parse body
-	var requestItem Item.RequestUpdateTodoItem
-	err := ctx.ShouldBindJSON(&requestItem)
-	if err != nil {
-		logger.Warn("(RequestUpdateItem)Error when bind body json: %v", err.Error())
-		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)
-	}
-
-	// Select items from database
-	code := manager.UpdateItem(userId, requestItem.ItemId, requestItem.ToDataBaseMap())
-	if code == globals.StatusDatabaseSelectNotFound {
-		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
-	} else if code == globals.StatusDatabaseCommandError {
-		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
-	} else {
-		ctx.JSON(globals.ReturnJsonSuccess.Code, globals.ReturnJsonSuccess.Json)
-	}
-}
-
-func (manager *Manager) RequestDeleteItemById(ctx *gin.Context) {
-	userId := checkUserLogin(ctx)
-	if userId == -1 {
-		return
-	}
-
-	itemId, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
-	if err != nil {
-		logger.Warn("(RequestGetItemById)Error when parse param: %v", err.Error())
-		ctx.JSON(globals.ReturnJsonParamError.Code, globals.ReturnJsonParamError.Json)
-		return
-	}
-
-	// Delete item from database
-	code := manager.DeleteItemById(userId, itemId)
-	if code == globals.StatusDatabaseCommandOK {
-		ctx.JSON(globals.ReturnJsonSuccess.Code, globals.ReturnJsonSuccess.Json)
-	} else if code == globals.StatusDatabaseSelectNotFound {
-		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
-	} else {
-		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
-	}
-}
-
 // RequestRegisterUser send user token in json and fresh refreshToken
-func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
+func RequestRegisterUser(ctx *gin.Context) {
 	var userItem Item.RequestRegisterUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
@@ -177,7 +30,7 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 	}
 
 	// Judge whether the username exists
-	if manager.isUserExists(userItem.MailAddr) {
+	if isUserExists(userItem.MailAddr) {
 		logger.Info("(RequestRegisterUser)User exists: %v", userItem.Name)
 		ctx.JSON(
 			http.StatusBadRequest,
@@ -233,7 +86,7 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 	}
 
 	// Register
-	newUserId := manager.AddUser(userItem)
+	newUserId := AddUser(userItem)
 	if newUserId != -1 {
 		ctx.JSON(http.StatusCreated,
 			gin.H{
@@ -242,8 +95,7 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 				"token":        utils.GenerateUserToken(newUserId),
 				"refreshToken": utils.GenerateUserRefreshToken(newUserId),
 			})
-		manager.updateUserItemInfo(newUserId)
-		log.Printf("Manager.RequestRegisterUser: Add user successfully: %v\n", userItem.Name)
+		logger.Trace("(RequestRegisterUser)Add user successfully: %v", userItem.Name)
 	} else {
 		ctx.JSON(
 			http.StatusInternalServerError,
@@ -257,7 +109,7 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 }
 
 // RequestLogin send token in json and fresh refresh token.
-func (manager *Manager) RequestLogin(ctx *gin.Context) {
+func RequestLogin(ctx *gin.Context) {
 	var userItem Item.RequestLoginUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
@@ -287,7 +139,7 @@ func (manager *Manager) RequestLogin(ctx *gin.Context) {
 	}
 
 	// Login
-	userId, code := manager.UserLogin(userItem)
+	userId, code := UserLogin(userItem)
 	if code == globals.StatusDatabaseCommandOK { // Login successfully
 		logger.Trace("Manager.RequestLogin: User login successfully: %v", userItem.MailAddr)
 		refreshTokenString := utils.GenerateUserRefreshToken(userId)
@@ -300,7 +152,6 @@ func (manager *Manager) RequestLogin(ctx *gin.Context) {
 				"token":        utils.GenerateUserToken(userId),
 				"refreshToken": refreshTokenString,
 			})
-		manager.updateUserItemInfo(userId)
 	} else {
 		if code == globals.StatusDatabaseSelectNotFound {
 			ctx.JSON(
@@ -324,12 +175,12 @@ func (manager *Manager) RequestLogin(ctx *gin.Context) {
 	}
 }
 
-func (manager *Manager) RequestGetCurrentUser(ctx *gin.Context) {
+func RequestGetCurrentUser(ctx *gin.Context) {
 	userId := handler.GetUserIdFromToken(ctx)
 
 	// User not login, return userId=-1 means no user
 	if userId == -1 {
-		logger.Error("(RequestGetCurrentUser)User not login.")
+		logger.Info("(RequestGetCurrentUser)User not login.")
 		ctx.JSON(
 			http.StatusOK,
 			gin.H{
@@ -345,7 +196,7 @@ func (manager *Manager) RequestGetCurrentUser(ctx *gin.Context) {
 	}
 
 	// Select user from database
-	item, code := manager.GetUserInfo(userId)
+	item, code := GetUserInfo(userId)
 	if code == globals.StatusDatabaseSelectNotFound {
 		ctx.JSON(
 			http.StatusBadRequest,
@@ -374,10 +225,10 @@ func (manager *Manager) RequestGetCurrentUser(ctx *gin.Context) {
 }
 
 // RequestDeleteUser send empty user token if delete successfully.
-func (manager *Manager) RequestDeleteUser(ctx *gin.Context) {
+func RequestDeleteUser(ctx *gin.Context) {
 	userId := handler.GetUserIdFromToken(ctx)
 	if userId == -1 {
-		logger.Error("(RequestDeleteUser)User not login.")
+		logger.Info("(RequestDeleteUser)User not login.")
 		ctx.JSON(
 			http.StatusUnauthorized,
 			gin.H{
@@ -385,9 +236,12 @@ func (manager *Manager) RequestDeleteUser(ctx *gin.Context) {
 				"message": "Not login.",
 				"token":   utils.GenerateEmptyUserToken(),
 			})
+		return
 	}
-	code := manager.DeleteUser(userId)
+
+	code := DeleteUser(userId)
 	if code != globals.StatusDatabaseCommandOK {
+
 		ctx.JSON(
 			http.StatusInternalServerError,
 			gin.H{
@@ -395,19 +249,19 @@ func (manager *Manager) RequestDeleteUser(ctx *gin.Context) {
 				"message": "Internal server error.",
 				"token":   utils.GetUserTokenFromContext(ctx),
 			})
-		return
+	} else {
+		ctx.JSON(
+			http.StatusOK,
+			gin.H{
+				"code":    http.StatusOK,
+				"message": "",
+				"token":   utils.GenerateEmptyUserToken(),
+			})
 	}
-	ctx.JSON(
-		http.StatusOK,
-		gin.H{
-			"code":    http.StatusOK,
-			"message": "",
-			"token":   utils.GenerateEmptyUserToken(),
-		})
 }
 
 // RequestRefreshToken judge whether the refresh token has expired then send fresher token.
-func (manager *Manager) RequestRefreshToken(ctx *gin.Context) {
+func RequestRefreshToken(ctx *gin.Context) {
 	userId, b := handler.GetUserIdFromTokenIgnoreExpiration(ctx)
 	// User id error
 	if userId == -1 {
@@ -421,7 +275,7 @@ func (manager *Manager) RequestRefreshToken(ctx *gin.Context) {
 					"token":   utils.GetUserTokenFromContext(ctx),
 				})
 		} else {
-			logger.Error("(RequestRefreshToken)User not login.")
+			logger.Info("(RequestRefreshToken)User not login.")
 			ctx.JSON(
 				http.StatusUnauthorized,
 				gin.H{
@@ -467,13 +321,13 @@ func (manager *Manager) RequestRefreshToken(ctx *gin.Context) {
 		})
 }
 
-func (manager *Manager) RequestSendVerifyMail(ctx *gin.Context) {
+func RequestSendVerifyMail(ctx *gin.Context) {
 	mailAddr, ok := ctx.GetQuery("mail")
 	if !ok || len(mailAddr) == 0 {
 		ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
 		return
 	}
-	ok = manager.SendVerifyMail(mailAddr)
+	ok = SendVerifyMail(mailAddr)
 	if !ok {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": http.StatusBadRequest, "message": "Send mail failed."})
 	} else {
@@ -481,7 +335,7 @@ func (manager *Manager) RequestSendVerifyMail(ctx *gin.Context) {
 	}
 }
 
-func (manager *Manager) RequestGetMailVerify(ctx *gin.Context) {
+func RequestGetMailVerify(ctx *gin.Context) {
 	var item Item.RequestVerifyMailItem
 	err := ctx.ShouldBindJSON(&item)
 	if err != nil {
@@ -489,10 +343,9 @@ func (manager *Manager) RequestGetMailVerify(ctx *gin.Context) {
 		return
 	}
 
-	t, code := manager.VerifyMail(item.MailAddr, item.VerifyCode)
+	t, code := VerifyMail(item.MailAddr, item.VerifyCode)
 	if code == globals.StatusInternalServerError {
 		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
-		return
 	} else if code == globals.StatusNoVerifyCode {
 		ctx.JSON(http.StatusNotFound, gin.H{"code": http.StatusNotFound, "message": "Mail not found."})
 	} else if code == globals.StatusIncorrectVerifyCode {

@@ -18,14 +18,14 @@ const (
 )
 
 const (
-	StatusDatabaseCommandOK      = 0
-	StatusDatabaseCommandError   = 1
-	StatusDatabaseSelectNotFound = 2
+	StatusDatabaseCommandOK = 0 + iota
+	StatusDatabaseCommandError
+	StatusDatabaseSelectNotFound
 )
 
 const (
-	StatusNoVerifyCode        = 1
-	StatusIncorrectVerifyCode = 2
+	StatusNoVerifyCode = 1 + iota
+	StatusIncorrectVerifyCode
 )
 
 type ReturnJson struct {

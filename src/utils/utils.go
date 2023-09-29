@@ -4,6 +4,7 @@ import (
 	"TODOList/src/globals"
 	"crypto/md5"
 	"fmt"
+	"github.com/wonderivan/logger"
 	"strconv"
 )
 
@@ -36,4 +37,44 @@ func GenerateVerifyCode() string {
 		s += strconv.Itoa(globals.Rand.Intn(10))
 	}
 	return s
+}
+
+func int64ToStr(v int64) string {
+	return fmt.Sprintf("%v", v)
+}
+
+func GetUserCount() int64 {
+	count, err := globals.RedisClient.Get("UserCount").Int64()
+	if err != nil {
+		logger.Alert("(GetUserCount)Error when get from redis: %v", err.Error())
+		return -1
+	}
+	return count
+}
+
+func SetUserCount(count int64) {
+	globals.RedisClient.Set("UserCount", count, 0)
+}
+
+func SetUserCountPlusOne() int64 {
+	v := GetUserCount() + 1
+	SetUserCount(v)
+	return v
+}
+
+func GetItemCount(userId int64) int64 {
+	count, err := globals.RedisClient.HGet("ItemCount", fmt.Sprintf("%v", userId)).Int64()
+	if err != nil {
+		logger.Alert("(GetItemCount)Error when get from redis: %v", err.Error())
+		return -1
+	}
+	return count
+}
+
+func SetItemCount(userId int64, count int64) {
+	globals.RedisClient.HSet("ItemCount", int64ToStr(userId), count)
+}
+
+func SetItemCountPlusOne(userId int64) {
+	SetItemCount(userId, GetItemCount(userId)+1)
 }

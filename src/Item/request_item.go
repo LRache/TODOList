@@ -119,9 +119,12 @@ type RequestUserInfoItem struct {
 }
 
 type RequestGetItemsItem struct {
-	Tag      string `form:"tag"`
-	Done     string `form:"done"`
-	Deadline string `form:"deadlineBefore"`
+	Tag       string `form:"tag"`
+	Done      string `form:"done"`
+	Deadline  string `form:"deadlineBefore"`
+	PageIndex string `form:"pageIndex"`
+	Limit     string `form:"limit"`
+	Order     string `form:"order"`
 }
 
 func (requestItem *RequestGetItemsItem) ToSqlSelectWhereCommandStrings() []string {
