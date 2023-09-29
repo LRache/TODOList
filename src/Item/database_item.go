@@ -5,6 +5,7 @@ type DataBaseUserItem struct {
 	Name      string `db:"username"`
 	Password  string `db:"password"`
 	TodoCount int64  `db:"todocount"`
+	MailAddr  string `db:"mailAddr"`
 }
 
 type DataBaseTodoItem struct {

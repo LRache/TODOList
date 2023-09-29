@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"TODOList/src/globals"
 	"crypto/md5"
 	"fmt"
+	"strconv"
 )
 
 func IsValidUsername(name string) bool {
@@ -26,4 +28,12 @@ func StringToMd5(password string) string {
 	data := []byte(password)
 	pwd := md5.Sum(data)
 	return fmt.Sprintf("%x", pwd)
+}
+
+func GenerateVerifyCode() string {
+	var s string
+	for i := 0; i < 6; i++ {
+		s += strconv.Itoa(globals.Rand.Intn(10))
+	}
+	return s
 }

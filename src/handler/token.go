@@ -1,10 +1,10 @@
 package handler
 
 import (
+	"TODOList/src/globals"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/wonderivan/logger"
-	"log"
 	"time"
 )
 
@@ -13,14 +13,10 @@ type UserClaims struct {
 	jwt.StandardClaims
 }
 
-var (
-	secret = []byte("zjdxfszx20200635")
-)
-
 func GenerateToken(claims *UserClaims) string {
-	t, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(secret)
+	t, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(globals.TokenSecret)
 	if err != nil {
-		log.Printf("GenerateToken: Error when signed string: %v\n", err.Error())
+		logger.Warn("GenerateToken: Error when signed string: %v", err.Error())
 		return ""
 	}
 	return t

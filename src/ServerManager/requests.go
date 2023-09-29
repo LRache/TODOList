@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -160,7 +161,7 @@ func (manager *Manager) RequestDeleteItemById(ctx *gin.Context) {
 
 // RequestRegisterUser send user token in json and fresh refreshToken
 func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
-	var userItem Item.RequestLoginUserItem
+	var userItem Item.RequestRegisterUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
 		logger.Warn("(RequestRegisterUser)Error when bind body json to userItem: %v", err.Error())
@@ -175,6 +176,48 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 		return
 	}
 
+	// Judge whether the username exists
+	if manager.isUserExists(userItem.MailAddr) {
+		logger.Info("(RequestRegisterUser)User exists: %v", userItem.Name)
+		ctx.JSON(
+			http.StatusBadRequest,
+			gin.H{
+				"code":         http.StatusBadRequest,
+				"message":      "User exists.",
+				"token":        utils.GenerateEmptyUserToken(),
+				"refreshToken": utils.GetUserRefreshTokenStringFromContext(ctx),
+			})
+		return
+	}
+
+	if !strings.HasSuffix(userItem.MailAddr, "@todouser") {
+		mailInToken, ok := GetMailAddrFromToken(userItem.MailToken)
+		if !ok {
+			logger.Warn("(RequestRegisterUser)Get mail from token failed.")
+			ctx.JSON(
+				http.StatusBadRequest,
+				gin.H{
+					"code":         http.StatusBadRequest,
+					"message":      "Parse token failed.",
+					"token":        utils.GenerateEmptyUserToken(),
+					"refreshToken": utils.GetUserRefreshTokenStringFromContext(ctx),
+				})
+			return
+		} else if mailInToken != userItem.MailAddr {
+			logger.Trace("(RequestRegisterUser)Unmatched token, mailInToken = %v but got %v",
+				mailInToken, userItem.MailAddr)
+			ctx.JSON(
+				http.StatusNotAcceptable,
+				gin.H{
+					"code":         http.StatusNotAcceptable,
+					"message":      "Unmatched mail.",
+					"token":        utils.GenerateEmptyUserToken(),
+					"refreshToken": utils.GetUserRefreshTokenStringFromContext(ctx),
+				})
+			return
+		}
+	}
+
 	// Judge whether the username is valid
 	if !utils.IsValidUsername(userItem.Name) {
 		logger.Info("(RequestRegisterUser)Invalid username: %v", userItem.Name)
@@ -183,19 +226,6 @@ func (manager *Manager) RequestRegisterUser(ctx *gin.Context) {
 			gin.H{
 				"code":         http.StatusBadRequest,
 				"message":      "Invalid username.",
-				"token":        utils.GenerateEmptyUserToken(),
-				"refreshToken": utils.GetUserRefreshTokenStringFromContext(ctx),
-			})
-		return
-	}
-	// Judge whether the username exists
-	if manager.isUserNameExists(userItem.Name) {
-		logger.Info("(RequestRegisterUser)User exists: %v", userItem.Name)
-		ctx.JSON(
-			http.StatusBadRequest,
-			gin.H{
-				"code":         http.StatusBadRequest,
-				"message":      "User exists.",
 				"token":        utils.GenerateEmptyUserToken(),
 				"refreshToken": utils.GetUserRefreshTokenStringFromContext(ctx),
 			})
@@ -231,7 +261,7 @@ func (manager *Manager) RequestLogin(ctx *gin.Context) {
 	var userItem Item.RequestLoginUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
-		log.Printf("Manager.RequestLogin: Error when bind json: %v\n", err.Error())
+		logger.Warn("Manager.RequestLogin: Error when bind json: %v", err.Error())
 		ctx.JSON(
 			http.StatusBadRequest,
 			gin.H{
@@ -243,9 +273,8 @@ func (manager *Manager) RequestLogin(ctx *gin.Context) {
 		return
 	}
 
-	// If username is empty, logout return empty token in json.
-	if userItem.Name == "" {
-		logger.Trace("(RequestLogin)User logout: %v\n", userItem.Name)
+	// If userAddr is empty, logout return empty token in json.
+	if userItem.MailAddr == "" {
 		ctx.JSON(
 			http.StatusOK,
 			gin.H{
@@ -260,7 +289,7 @@ func (manager *Manager) RequestLogin(ctx *gin.Context) {
 	// Login
 	userId, code := manager.UserLogin(userItem)
 	if code == globals.StatusDatabaseCommandOK { // Login successfully
-		log.Printf("Manager.RequestLogin: User login successfully: %v\n", userItem.Name)
+		logger.Trace("Manager.RequestLogin: User login successfully: %v", userItem.MailAddr)
 		refreshTokenString := utils.GenerateUserRefreshToken(userId)
 		ctx.JSON(
 			http.StatusOK,
@@ -310,6 +339,7 @@ func (manager *Manager) RequestGetCurrentUser(ctx *gin.Context) {
 					"userid":    userId,
 					"username":  "",
 					"todoCount": 0,
+					"mailAddr":  "",
 				}})
 		return
 	}
@@ -435,4 +465,39 @@ func (manager *Manager) RequestRefreshToken(ctx *gin.Context) {
 			"message": "Refresh token successfully.",
 			"token":   utils.GenerateUserToken(userId),
 		})
+}
+
+func (manager *Manager) RequestSendVerifyMail(ctx *gin.Context) {
+	mailAddr, ok := ctx.GetQuery("mail")
+	if !ok || len(mailAddr) == 0 {
+		ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
+		return
+	}
+	ok = manager.SendVerifyMail(mailAddr)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, gin.H{"code": http.StatusBadRequest, "message": "Send mail failed."})
+	} else {
+		ctx.JSON(globals.ReturnJsonSuccess.Code, globals.ReturnJsonSuccess.Json)
+	}
+}
+
+func (manager *Manager) RequestGetMailVerify(ctx *gin.Context) {
+	var item Item.RequestVerifyMailItem
+	err := ctx.ShouldBindJSON(&item)
+	if err != nil {
+		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)
+		return
+	}
+
+	t, code := manager.VerifyMail(item.MailAddr, item.VerifyCode)
+	if code == globals.StatusInternalServerError {
+		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
+		return
+	} else if code == globals.StatusNoVerifyCode {
+		ctx.JSON(http.StatusNotFound, gin.H{"code": http.StatusNotFound, "message": "Mail not found."})
+	} else if code == globals.StatusIncorrectVerifyCode {
+		ctx.JSON(http.StatusNotAcceptable, gin.H{"code": http.StatusNotAcceptable, "message": "Incorrect verify code."})
+	} else {
+		ctx.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "message": "", "mailToken": t})
+	}
 }

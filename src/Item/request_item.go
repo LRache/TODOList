@@ -99,8 +99,15 @@ type RequestUserNameItem struct {
 	Name string `json:"username"`
 }
 
+type RequestRegisterUserItem struct {
+	Name      string `json:"username"`
+	Password  string `json:"password"`
+	MailAddr  string `json:"mailAddr"`
+	MailToken string `json:"mailToken"`
+}
+
 type RequestLoginUserItem struct {
-	Name     string `json:"username"`
+	MailAddr string `json:"mailAddr"`
 	Password string `json:"password"`
 }
 
@@ -108,17 +115,22 @@ type RequestUserInfoItem struct {
 	Name      string `json:"username"`
 	UserId    int64  `json:"userid"`
 	TodoCount int64  `json:"todoCount"`
+	MailAddr  string `json:"mailAddr"`
 }
 
 type RequestGetItemsItem struct {
-	Tag  string `form:"tag"`
-	Done string `form:"done"`
+	Tag      string `form:"tag"`
+	Done     string `form:"done"`
+	Deadline string `form:"deadlineBefore"`
 }
 
 func (requestItem *RequestGetItemsItem) ToSqlSelectWhereCommandStrings() []string {
 	commandStrings := make([]string, 0)
 	if requestItem.Tag != "" {
 		commandStrings = append(commandStrings, fmt.Sprintf("tag = \"%s\"", requestItem.Tag))
+	}
+	if requestItem.Deadline != "" {
+		commandStrings = append(commandStrings, fmt.Sprintf("deadline < \"%s\"", requestItem.Deadline))
 	}
 	if requestItem.Done != "" {
 		if requestItem.Done == "true" {
@@ -128,4 +140,9 @@ func (requestItem *RequestGetItemsItem) ToSqlSelectWhereCommandStrings() []strin
 		}
 	}
 	return commandStrings
+}
+
+type RequestVerifyMailItem struct {
+	MailAddr   string `json:"mail"`
+	VerifyCode string `json:"code"`
 }

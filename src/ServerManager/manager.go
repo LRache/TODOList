@@ -9,14 +9,14 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/wonderivan/logger"
+	"gopkg.in/gomail.v2"
 	"log"
 	"strings"
 )
 
 type Manager struct {
-	UserNameList []string
-	database     *sqlx.DB
-	redisClient  *redis.Client
+	database    *sqlx.DB
+	redisClient *redis.Client
 
 	userCount int64
 	itemCount map[int64]int64
@@ -62,9 +62,9 @@ func (manager *Manager) End() {
 	_ = manager.redisClient.Close()
 }
 
-func (manager *Manager) isUserNameExists(user string) bool {
+func (manager *Manager) isUserExists(mailAddr string) bool {
 	var userItems []Item.DataBaseUserItem
-	err := manager.database.Select(&userItems, "SELECT * FROM Users WHERE username = ? LIMIT 1", user)
+	err := manager.database.Select(&userItems, "SELECT * FROM Users WHERE mailAddr = ? LIMIT 1", mailAddr)
 	if err != nil {
 		return false
 	}
@@ -226,7 +226,7 @@ func (manager *Manager) UpdateItem(userId int64, itemId int64, values map[string
 }
 
 // AddUser return new user id, -1 for failure.
-func (manager *Manager) AddUser(user Item.RequestLoginUserItem) int64 {
+func (manager *Manager) AddUser(user Item.RequestRegisterUserItem) int64 {
 	var newUserId int64
 	// Allocate new user id
 	if manager.redisClient.LLen("EmptyUserId").Val() == 0 {
@@ -238,8 +238,8 @@ func (manager *Manager) AddUser(user Item.RequestLoginUserItem) int64 {
 
 	// Insert user into database
 	logger.Trace("(AddUser)Insert new user into database: id = %v, name = %v", newUserId, user.Name)
-	_, err := manager.database.Exec("INSERT INTO Users(id, username, password, todocount) values(?, ?, ?, 0)",
-		newUserId, user.Name, utils.StringToMd5(user.Password))
+	_, err := manager.database.Exec("INSERT INTO Users(id, username, password, todocount, mailAddr) values(?, ?, ?, 0, ?)",
+		newUserId, user.Name, utils.StringToMd5(user.Password), user.MailAddr)
 	if err != nil {
 		logger.Error("(AddUser)Error when insert user into database: %v", err.Error())
 		return -1
@@ -255,9 +255,9 @@ func (manager *Manager) UserLogin(user Item.RequestLoginUserItem) (int64, int) {
 	var userItems []Item.DataBaseUserItem
 	passwordMd5 := utils.StringToMd5(user.Password)
 
-	logger.Trace("(UserLogin)User login: username = %v, passwordMd5 = %v", user.Name, passwordMd5)
-	err := manager.database.Select(&userItems, "SELECT * FROM users WHERE username = ? AND password = ? LIMIT 1",
-		user.Name, passwordMd5)
+	logger.Trace("(UserLogin)User login: mailAddr = %v, passwordMd5 = %v", user.MailAddr, passwordMd5)
+	err := manager.database.Select(&userItems, "SELECT * FROM users WHERE mailAddr = ? AND password = ? LIMIT 1",
+		user.MailAddr, passwordMd5)
 	if err != nil {
 		logger.Error("(UserLogin)Error when select user from database: %v", err.Error())
 		return -1, globals.StatusDatabaseCommandError
@@ -289,6 +289,7 @@ func (manager *Manager) GetUserInfo(userId int64) (Item.RequestUserInfoItem, int
 	databaseItem := databaseItems[0]
 	item.UserId = databaseItem.Id
 	item.Name = databaseItem.Name
+	item.MailAddr = databaseItem.MailAddr
 	logger.Trace("(GetUserInfo)Load user item successfully: userId = %v", userId)
 
 	// Count todoItem from database
@@ -333,4 +334,48 @@ func (manager *Manager) DeleteUser(userId int64) int {
 	manager.redisClient.LPush("EmptyUserId", userId)
 	logger.Trace("(DeleteUser)Push empty userid: %v", userId)
 	return globals.StatusDatabaseCommandOK
+}
+
+func (manager *Manager) SendVerifyMail(addr string) bool {
+	code := utils.GenerateVerifyCode()
+
+	m := gomail.NewMessage()
+	m.SetHeader("From", globals.MailFrom)
+	m.SetHeader("To", addr)
+	m.SetHeader("Subject", "Verify Your Email")
+	m.SetBody("text/html", fmt.Sprintf("You verify code is <br> <b>%s</b>", code))
+	d := gomail.NewDialer(globals.MailServerHost, globals.MailServerPort, globals.MailSender, globals.MailPassword)
+	logger.Trace("(SendVerifyMail)Send verify mail to \"%s\", verifyCode = \"%s\"", addr, code)
+	err := d.DialAndSend(m)
+	if err != nil {
+		logger.Warn("(SendVerifyMail)Error when send mail: %v", err.Error())
+		return false
+	}
+	manager.redisClient.HSet("MailVerifyCode", addr, code)
+	logger.Trace("(SendVerifyMail)Push verify code successfully.")
+	return true
+}
+
+func (manager *Manager) VerifyMail(mailAddr string, code string) (string, int) {
+	cmd := manager.redisClient.HGet("MailVerifyCode", mailAddr)
+	if cmd.Err() != nil {
+		return "", globals.StatusNoVerifyCode
+	}
+	correctCode := cmd.Val()
+	if correctCode == "" {
+		logger.Trace("(VerifyMail)Mail not found: \"%v\"", mailAddr)
+		return "", globals.StatusNoVerifyCode
+	}
+	if correctCode != code {
+		logger.Trace("(VerifyMail)Incorrect verify code: \"%v\", correct code is \"%v\"", code, correctCode)
+		return "", globals.StatusIncorrectVerifyCode
+	}
+	t, ok := GenerateMailVerifyCodeToken(&MailVerifyCodeClaims{MailAddr: mailAddr})
+	if !ok {
+		logger.Error("(VerifyMail)Error when generate token.")
+		return "", globals.StatusInternalServerError
+	}
+	manager.redisClient.HDel("MailVerifyCode", mailAddr)
+	logger.Trace("(VerifyMail)Verified mail: \"%v\".", mailAddr)
+	return t, globals.StatusOK
 }

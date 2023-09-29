@@ -11,3 +11,8 @@ redis:
   address: "localhost:6379"
   password: ""
   database: 1
+email:
+  host: "smtp.sina.cn"
+  port: 25
+  account: "11freedom11@sina.cn"
+  password: "6c5504ece8588934"

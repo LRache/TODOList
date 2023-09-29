@@ -2,6 +2,7 @@ package globals
 
 import (
 	"github.com/gin-gonic/gin"
+	"math/rand"
 	"net/http"
 	"time"
 )
@@ -12,9 +13,19 @@ const (
 )
 
 const (
+	StatusInternalServerError = -1
+	StatusOK                  = 0
+)
+
+const (
 	StatusDatabaseCommandOK      = 0
 	StatusDatabaseCommandError   = 1
 	StatusDatabaseSelectNotFound = 2
+)
+
+const (
+	StatusNoVerifyCode        = 1
+	StatusIncorrectVerifyCode = 2
 )
 
 type ReturnJson struct {
@@ -22,16 +33,20 @@ type ReturnJson struct {
 	Json gin.H
 }
 
-func returnJson(code int, message string) ReturnJson {
+func NewReturnJson(code int, message string) ReturnJson {
 	return ReturnJson{code, gin.H{"code": code, "message": message}}
 }
 
 var (
-	ReturnJsonUserNotLogin        = returnJson(http.StatusUnauthorized, "User not login.")
-	ReturnJsonInternalServerError = returnJson(http.StatusInternalServerError, "Internal server error when insert item.")
-	ReturnJsonItemNotFound        = returnJson(http.StatusBadRequest, "Item not found.")
-	ReturnJsonParamError          = returnJson(http.StatusBadRequest, "Param error.")
-	ReturnJsonQueryError          = returnJson(http.StatusBadRequest, "Query error.")
-	ReturnJsonBodyJsonError       = returnJson(http.StatusBadRequest, "Body json error.")
-	ReturnJsonSuccess             = returnJson(http.StatusOK, "Success")
+	ReturnJsonUserNotLogin        = NewReturnJson(http.StatusUnauthorized, "User not login.")
+	ReturnJsonInternalServerError = NewReturnJson(http.StatusInternalServerError, "Internal server error.")
+	ReturnJsonItemNotFound        = NewReturnJson(http.StatusNotFound, "Item not found.")
+	ReturnJsonParamError          = NewReturnJson(http.StatusBadRequest, "Param error.")
+	ReturnJsonQueryError          = NewReturnJson(http.StatusBadRequest, "Query error.")
+	ReturnJsonBodyJsonError       = NewReturnJson(http.StatusBadRequest, "Body json error.")
+	ReturnJsonSuccess             = NewReturnJson(http.StatusOK, "Success")
 )
+
+var Rand = rand.New(rand.NewSource(time.Now().Unix()))
+
+var TokenSecret = []byte("zjdxfszx20200635")

@@ -11,8 +11,9 @@ import (
 )
 
 func main() {
-	globals.InitLogger()
 	globals.InitConfigures("./configures.yml")
+	globals.InitLogger()
+	globals.InitMail()
 
 	router := gin.Default()
 	store := cookie.NewStore([]byte("adecvsefslkhj"))
@@ -23,7 +24,7 @@ func main() {
 	manager.Init()
 	defer manager.End()
 
-	// items
+	// item
 	itemGroup := router.Group("/todo/item")
 	itemGroup.GET("/:id", manager.RequestGetItemById)
 	itemGroup.GET("", manager.RequestGetItems)
@@ -31,12 +32,16 @@ func main() {
 	itemGroup.POST("", manager.RequestUpdateItem)
 	itemGroup.DELETE("/:id", manager.RequestDeleteItemById)
 
+	// user
 	userGroup := router.Group("/todo/user")
 	userGroup.GET("", manager.RequestGetCurrentUser)
 	userGroup.PUT("", manager.RequestRegisterUser)
 	userGroup.POST("", manager.RequestLogin)
 	userGroup.DELETE("", manager.RequestDeleteUser)
 	userGroup.POST("/token", manager.RequestRefreshToken)
+
+	userGroup.GET("/mail", manager.RequestSendVerifyMail)
+	userGroup.POST("/mail", manager.RequestGetMailVerify)
 
 	err := router.Run(globals.Configures.GetString("server.host") +
 		":" + globals.Configures.GetString("server.port"))

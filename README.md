@@ -11,16 +11,52 @@
 |  deadline  | string |  截止时间   |
 |    tag     | string |   标签    |
 |    done    |  bool  |  是否完成   |
+
 ## 接口API
+### 发送邮箱验证码
+路由：`/todo/user/mail`  
+方法：`GET`  
+参数：
+
+|  位置   |  字段  |   类型   |  描述  |
+|:-----:|:----:|:------:|:----:|
+| Query | mail | string | 邮箱地址 |
+
+返回：
+
+|   字段    |   类型   |   描述    |
+|:-------:|:------:|:-------:|
+|  code   |  int   | 成功则为200 |
+| message | string |         |
+
+### 验证邮箱
+路由：`/todo/user/mail`  
+方法：`POST`  
+参数：
+
+|    位置     |  字段  |   类型   |    描述     |
+|:---------:|:----:|:------:|:---------:|
+| Body Json | mail | string |   用户邮箱    |
+| Body Json | code | string | 发送到邮箱的验证码 |
+
+返回：
+
+|    字段     |   类型   |      描述      |
+|:---------:|:------:|:------------:|
+|   code    |  int   |   成功则为200    |
+|  message  | string |              |
+| mailToken | string | 用于验证邮箱的token |
+
 ### 注册
 路由：`/todo/user`  
 方法：`PUT`   
 参数：
 
-|    位置     |    字段    |   类型   |  描述  |
-|:---------:|:--------:|:------:|:----:|
-| Body Json | username | string | 用户名称 |
-| Body Json | password | string | 用户密码 |
+|    位置     |    字段     |   类型   |         描述         |
+|:---------:|:---------:|:------:|:------------------:|
+| Body Json | mailAddr  | string |        用户邮箱        |
+| Body Json | password  | string |        用户密码        |
+| Body Json | mailToken | string | 用于确保用户邮箱通过验证的token |
 
 返回：
 
@@ -31,6 +67,8 @@
 |    userId    |  int   |       新用户的id        |
 |    token     | string |    用于自动登录的token     |
 | refreshToken | string | 用于在token过期后刷新的token |
+
+注意：作为测试，以`@todouser`结尾的邮箱不需要验证。
 
 ### 登录和注销
 路由： `/todo/user`  
@@ -152,11 +190,12 @@
 方法：`GET`  
 参数：
 
-|    位置     |     字段     |   类型   |     描述     |
-|:---------:|:----------:|:------:|:----------:|
-|  Headers  |   token    | string |  用户token   |
-|   Query   |    tag     | string |  留空则不筛选标题  |
-|   Query   |    done    |  bool  | 留空则不筛选是否完成 |
+|   位置    |       字段       |   类型   |             描述             |
+|:-------:|:--------------:|:------:|:--------------------------:|
+| Headers |     token      | string |          用户token           |
+|  Query  |      tag       | string |          留空则不筛选标题          |
+|  Query  |      done      |  bool  |         留空则不筛选是否完成         |
+|  Query  | deadlineBefore | string | 筛选截止时间在某时间之前的TODO，留空则表示不筛选 |
 
 返回：
 
@@ -175,7 +214,7 @@
 |:---------:|:----------:|:------------:|:----------:|
 |  Headers  |   token    |    string    |  用户token   |
 | Body Json |   itemId   |     int      |  TODO id   |
-| Body Json | updateKeys | list[string] | 要更新字段的名称列表 |
+| Body Json | updateKeys | list[string] | 要更新的字段名称列表 |
 | Body Json |   title    |    string    |   TODO标题   |
 | Body Json |  content   |    string    |   TODO内容   |
 | Body Json | createTime |    string    |  TODO创建时间  |
