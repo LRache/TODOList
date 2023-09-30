@@ -90,6 +90,25 @@
 |    token     | string |    用于自动登录的token     |
 | refreshToken | string | 用于在token过期后刷新的token |     
 
+### 设置密码
+路由：`/todo/user/reset`  
+方法：`POST`
+参数：
+
+|    位置     |     字段      |   类型   |         描述         |
+|:---------:|:-----------:|:------:|:------------------:|
+| Body Json |  mailAddr   | string |        用户邮箱        |
+| Body Json | newPassword | string |       用户新的密码       |
+| Body Json |  mailToken  | string | 用于确保用户邮箱通过验证的token |
+
+返回：
+
+|      字段      |   类型   |              描述              |
+|:------------:|:------:|:----------------------------:|
+|     code     |  int   |           成功则为200            |
+|   message    | string |                              |
+
+
 ### 获取登录用户信息
 路由：`/todo/user`  
 方法：`GET`  
