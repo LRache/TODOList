@@ -40,7 +40,7 @@ func NewReturnJson(code int, message string) ReturnJson {
 var (
 	ReturnJsonUserNotLogin        = NewReturnJson(http.StatusUnauthorized, "User not login.")
 	ReturnJsonInternalServerError = NewReturnJson(http.StatusInternalServerError, "Internal server error.")
-	ReturnJsonItemNotFound        = NewReturnJson(http.StatusNotFound, "Item not found.")
+	ReturnJsonItemNotFound        = NewReturnJson(http.StatusNotFound, "item not found.")
 	ReturnJsonParamError          = NewReturnJson(http.StatusBadRequest, "Param error.")
 	ReturnJsonQueryError          = NewReturnJson(http.StatusBadRequest, "Query error.")
 	ReturnJsonBodyJsonError       = NewReturnJson(http.StatusBadRequest, "Body json error.")

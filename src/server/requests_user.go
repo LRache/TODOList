@@ -1,9 +1,9 @@
 package server
 
 import (
-	"TODOList/src/Item"
 	"TODOList/src/globals"
 	"TODOList/src/handler"
+	"TODOList/src/item"
 	"TODOList/src/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/wonderivan/logger"
@@ -14,7 +14,7 @@ import (
 
 // RequestRegisterUser send user token in json and fresh refreshToken
 func RequestRegisterUser(ctx *gin.Context) {
-	var userItem Item.RequestRegisterUserItem
+	var userItem item.RequestRegisterUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
 		logger.Warn("(RequestRegisterUser)Error when bind body json to userItem: %v", err.Error())
@@ -44,7 +44,7 @@ func RequestRegisterUser(ctx *gin.Context) {
 	}
 
 	if !strings.HasSuffix(userItem.MailAddr, "@todouser") {
-		mailInToken, ok := GetMailAddrFromToken(userItem.MailToken)
+		mailFromToken, ok := GetMailAddrFromToken(userItem.MailToken)
 		if !ok {
 			logger.Warn("(RequestRegisterUser)Get mail from token failed.")
 			ctx.JSON(
@@ -56,9 +56,9 @@ func RequestRegisterUser(ctx *gin.Context) {
 					"refreshToken": utils.GetUserRefreshTokenStringFromContext(ctx),
 				})
 			return
-		} else if mailInToken != userItem.MailAddr {
+		} else if mailFromToken != userItem.MailAddr {
 			logger.Trace("(RequestRegisterUser)Unmatched token, mailInToken = %v but got %v",
-				mailInToken, userItem.MailAddr)
+				mailFromToken, userItem.MailAddr)
 			ctx.JSON(
 				http.StatusNotAcceptable,
 				gin.H{
@@ -110,10 +110,10 @@ func RequestRegisterUser(ctx *gin.Context) {
 
 // RequestLogin send token in json and fresh refresh token.
 func RequestLogin(ctx *gin.Context) {
-	var userItem Item.RequestLoginUserItem
+	var userItem item.RequestLoginUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
-		logger.Warn("Manager.RequestLogin: Error when bind json: %v", err.Error())
+		logger.Warn("(RequestLogin)Error when bind json: %v", err.Error())
 		ctx.JSON(
 			http.StatusBadRequest,
 			gin.H{
@@ -141,7 +141,7 @@ func RequestLogin(ctx *gin.Context) {
 	// Login
 	userId, code := UserLogin(userItem)
 	if code == globals.StatusDatabaseCommandOK { // Login successfully
-		logger.Trace("Manager.RequestLogin: User login successfully: %v", userItem.MailAddr)
+		logger.Trace("(RequestLogin)User login successfully: %v", userItem.MailAddr)
 		refreshTokenString := utils.GenerateUserRefreshToken(userId)
 		ctx.JSON(
 			http.StatusOK,
@@ -196,7 +196,7 @@ func RequestGetCurrentUser(ctx *gin.Context) {
 	}
 
 	// Select user from database
-	item, code := GetUserInfo(userId)
+	userInfo, code := GetUserInfo(userId)
 	if code == globals.StatusDatabaseSelectNotFound {
 		ctx.JSON(
 			http.StatusBadRequest,
@@ -219,8 +219,43 @@ func RequestGetCurrentUser(ctx *gin.Context) {
 			gin.H{
 				"code":     http.StatusOK,
 				"message":  "",
-				"userinfo": item,
+				"userinfo": userInfo,
 			})
+	}
+}
+
+func RequestResetUser(ctx *gin.Context) {
+	var requestItem item.RequestResetUserItem
+	if err := ctx.ShouldBindJSON(&requestItem); err != nil {
+		logger.Warn("(RequestResetUser)Error when parse body json: %v", err.Error())
+		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)
+		return
+	}
+
+	if !isUserExists(requestItem.MailAddr) {
+		logger.Info("(RequestResetUser)User not found: \"%v\"", requestItem.MailAddr)
+		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound)
+		return
+	}
+	if !strings.HasSuffix(requestItem.MailAddr, "@todouser") {
+		mailFromToken, ok := GetMailAddrFromToken(requestItem.MailToken)
+		if !ok {
+			ctx.JSON(http.StatusBadRequest, gin.H{"code": http.StatusBadRequest, "message": "Parse token error."})
+			return
+		}
+		if mailFromToken != requestItem.MailAddr {
+			logger.Trace("(RequestRegisterUser)Unmatched token, mailInToken = %v but got %v",
+				mailFromToken, requestItem.MailAddr)
+			ctx.JSON(http.StatusNotAcceptable, gin.H{"code": http.StatusNotAcceptable, "message": "Unmatched token and mail address."})
+			return
+		}
+	}
+
+	code := UserReset(requestItem.MailAddr, requestItem.NewPassword)
+	if code == globals.StatusDatabaseCommandOK {
+		ctx.JSON(globals.ReturnJsonSuccess.Code, globals.ReturnJsonSuccess.Json)
+	} else {
+		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
 	}
 }
 
@@ -336,14 +371,14 @@ func RequestSendVerifyMail(ctx *gin.Context) {
 }
 
 func RequestGetMailVerify(ctx *gin.Context) {
-	var item Item.RequestVerifyMailItem
-	err := ctx.ShouldBindJSON(&item)
+	var verifyMailItem item.RequestVerifyMailItem
+	err := ctx.ShouldBindJSON(&verifyMailItem)
 	if err != nil {
 		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)
 		return
 	}
 
-	t, code := VerifyMail(item.MailAddr, item.VerifyCode)
+	t, code := VerifyMail(verifyMailItem.MailAddr, verifyMailItem.VerifyCode)
 	if code == globals.StatusInternalServerError {
 		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
 	} else if code == globals.StatusNoVerifyCode {

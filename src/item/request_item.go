@@ -1,4 +1,4 @@
-package Item
+package item
 
 import (
 	"fmt"
@@ -148,4 +148,10 @@ func (requestItem *RequestGetItemsItem) ToSqlSelectWhereCommandStrings() []strin
 type RequestVerifyMailItem struct {
 	MailAddr   string `json:"mail"`
 	VerifyCode string `json:"code"`
+}
+
+type RequestResetUserItem struct {
+	MailAddr    string `json:"mailAddr"`
+	MailToken   string `json:"mailToken"`
+	NewPassword string `json:"newPassword"`
 }

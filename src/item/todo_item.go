@@ -1,4 +1,4 @@
-package Item
+package item
 
 type Item struct {
 	Title      string

@@ -1,4 +1,4 @@
-package Item
+package item
 
 func DatabaseToRequestTodoItem(databaseItem DataBaseTodoItem) RequestTodoItem {
 	var requestItem RequestTodoItem

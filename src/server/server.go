@@ -1,8 +1,8 @@
 package server
 
 import (
-	"TODOList/src/Item"
 	"TODOList/src/globals"
+	"TODOList/src/item"
 	"TODOList/src/utils"
 	"fmt"
 	"github.com/go-redis/redis"
@@ -19,7 +19,7 @@ type Manager struct {
 }
 
 func isUserExists(mailAddr string) bool {
-	var userItems []Item.DataBaseUserItem
+	var userItems []item.DataBaseUserItem
 	err := globals.SqlDatabase.Select(&userItems, "SELECT * FROM Users WHERE mailAddr = ? LIMIT 1", mailAddr)
 	if err != nil {
 		return false
@@ -38,7 +38,7 @@ func isTodoItemExists(userId int64, itemId int64) bool {
 }
 
 // AddItem return new item id and result code
-func AddItem(userId int64, todoItem Item.Item) (int64, int) {
+func AddItem(userId int64, todoItem item.Item) (int64, int) {
 	// Allocate item id
 	var newItemId int64
 	if globals.RedisClient.LLen(fmt.Sprintf("EmptyItemId:%d", userId)).Val() == 0 {
@@ -65,27 +65,27 @@ func AddItem(userId int64, todoItem Item.Item) (int64, int) {
 }
 
 // GetItemById return item list and result code.
-func GetItemById(userId int64, itemId int64) (Item.DataBaseTodoItem, int) {
+func GetItemById(userId int64, itemId int64) (item.DataBaseTodoItem, int) {
 	// Select item from database
 	logger.Trace("(GetItemById)Select item from database, userId = %v, itemId = %v", userId, itemId)
-	var todoItems []Item.DataBaseTodoItem
+	var todoItems []item.DataBaseTodoItem
 	err := globals.SqlDatabase.Select(&todoItems,
 		"SELECT * FROM todo WHERE userId=? AND id=? LIMIT 1", userId, itemId)
 	if err != nil {
 		logger.Error("Error when select items from database: %v", err.Error())
-		return Item.DataBaseTodoItem{}, globals.StatusDatabaseCommandError
+		return item.DataBaseTodoItem{}, globals.StatusDatabaseCommandError
 	}
 
 	if len(todoItems) == 0 {
-		logger.Warn("Item not found: %v\n", itemId)
-		return Item.DataBaseTodoItem{}, globals.StatusDatabaseSelectNotFound
+		logger.Warn("item not found: %v\n", itemId)
+		return item.DataBaseTodoItem{}, globals.StatusDatabaseSelectNotFound
 	}
 	logger.Trace("(GetItemById)Select item from database successfully, userId = %v, itemId = %v", userId, itemId)
 	return todoItems[0], globals.StatusDatabaseCommandOK
 }
 
 // GetItems return item list and result code.
-func GetItems(userId int64, requestItem Item.RequestGetItemsItem, order string, pageIndex int, limit int) ([]Item.DataBaseTodoItem, int) {
+func GetItems(userId int64, requestItem item.RequestGetItemsItem, order string, pageIndex int, limit int) ([]item.DataBaseTodoItem, int) {
 	// Generate select command.
 	var command string
 	if pageIndex != -1 {
@@ -100,7 +100,7 @@ func GetItems(userId int64, requestItem Item.RequestGetItemsItem, order string, 
 
 	// Select items from database.
 	logger.Trace("(GetItems)Select items from database, sqlCommand = \"%v\"", command)
-	itemList := make([]Item.DataBaseTodoItem, 0)
+	itemList := make([]item.DataBaseTodoItem, 0)
 	err := globals.SqlDatabase.Select(&itemList, command)
 	if err != nil {
 		logger.Error("(GetItems)Error when select items from database: %v", err.Error())
@@ -114,7 +114,7 @@ func GetItems(userId int64, requestItem Item.RequestGetItemsItem, order string, 
 func DeleteItemById(userId int64, itemId int64) int { // Return result code.
 	// Ensure item exists
 	if !isTodoItemExists(userId, itemId) {
-		logger.Warn("(DeleteItemById)Item not exists, userId = %v, itemId = %v", userId, itemId)
+		logger.Warn("(DeleteItemById)item not exists, userId = %v, itemId = %v", userId, itemId)
 		return globals.StatusDatabaseSelectNotFound
 	}
 
@@ -138,7 +138,7 @@ func DeleteItemById(userId int64, itemId int64) int { // Return result code.
 func UpdateItem(userId int64, itemId int64, values map[string]string) int {
 	// Ensure item exists.
 	if !isTodoItemExists(userId, itemId) {
-		logger.Warn("(UpdateItem)Item not exists: userId = %v, itemId = %v", userId, itemId)
+		logger.Warn("(UpdateItem)item not exists: userId = %v, itemId = %v", userId, itemId)
 		return globals.StatusDatabaseSelectNotFound
 	}
 
@@ -163,7 +163,7 @@ func UpdateItem(userId int64, itemId int64, values map[string]string) int {
 }
 
 // AddUser return new user id, -1 for failure.
-func AddUser(user Item.RequestRegisterUserItem) int64 {
+func AddUser(user item.RequestRegisterUserItem) int64 {
 	var newUserId int64
 	// Allocate new user id
 	if globals.RedisClient.LLen("EmptyUserId").Val() == 0 {
@@ -192,9 +192,9 @@ func AddUser(user Item.RequestRegisterUserItem) int64 {
 }
 
 // UserLogin return userid and result code.
-func UserLogin(user Item.RequestLoginUserItem) (int64, int) {
+func UserLogin(user item.RequestLoginUserItem) (int64, int) {
 	// Select from database
-	var userItems []Item.DataBaseUserItem
+	var userItems []item.DataBaseUserItem
 	passwordMd5 := utils.StringToMd5(user.Password)
 
 	logger.Trace("(UserLogin)User login: mailAddr = %v, passwordMd5 = %v", user.MailAddr, passwordMd5)
@@ -213,30 +213,40 @@ func UserLogin(user Item.RequestLoginUserItem) (int64, int) {
 	return userItems[0].Id, globals.StatusDatabaseCommandOK
 }
 
+func UserReset(mailAddr string, newPassword string) int {
+	_, err := globals.SqlDatabase.Exec("UPDATE users SET password = ? WHERE mailAddr = ?",
+		utils.StringToMd5(newPassword), mailAddr)
+	if err != nil {
+		logger.Error("(UserReset)Error when update database: %v", err.Error())
+		return globals.StatusDatabaseCommandError
+	}
+	return globals.StatusDatabaseCommandOK
+}
+
 // GetUserInfo return user info item and result code.
-func GetUserInfo(userId int64) (Item.RequestUserInfoItem, int) {
+func GetUserInfo(userId int64) (item.RequestUserInfoItem, int) {
 	// Select user from database
-	var databaseItems []Item.DataBaseUserItem
-	var item Item.RequestUserInfoItem
+	var databaseItems []item.DataBaseUserItem
+	var userInfo item.RequestUserInfoItem
 	logger.Trace("(GetUserInfo)Select user from database: userId = %v", userId)
 	err := globals.SqlDatabase.Select(&databaseItems, "SELECT * FROM users WHERE id = ?", userId)
 	if err != nil {
 		logger.Error("(GetUserInfo)Error when select from database: %v", err.Error())
-		return item, globals.StatusDatabaseCommandError
+		return userInfo, globals.StatusDatabaseCommandError
 	}
 
 	if len(databaseItems) == 0 {
 		logger.Warn("(GetUserInfo)User not found: userId = %v", userId)
-		return item, globals.StatusDatabaseSelectNotFound
+		return userInfo, globals.StatusDatabaseSelectNotFound
 	}
 
 	databaseItem := databaseItems[0]
-	item.UserId = databaseItem.Id
-	item.Name = databaseItem.Name
-	item.MailAddr = databaseItem.MailAddr
-	item.TodoCount = utils.GetItemCount(userId)
+	userInfo.UserId = databaseItem.Id
+	userInfo.Name = databaseItem.Name
+	userInfo.MailAddr = databaseItem.MailAddr
+	userInfo.TodoCount = utils.GetItemCount(userId)
 	logger.Trace("(GetUserInfo)Load user item successfully: userId = %v", userId)
-	return item, globals.StatusDatabaseCommandOK
+	return userInfo, globals.StatusDatabaseCommandOK
 }
 
 // DeleteUser return result code.
@@ -244,7 +254,7 @@ func DeleteUser(userId int64) int {
 	var err error
 
 	// Ensure user exists.
-	var userItems []Item.DataBaseUserItem
+	var userItems []item.DataBaseUserItem
 	err = globals.SqlDatabase.Select(&userItems, "SELECT * FROM Users WHERE id = ? LIMIT 1", userId)
 	if err != nil {
 		logger.Error("(DeleteUser)Error when select from database: %v", err.Error())

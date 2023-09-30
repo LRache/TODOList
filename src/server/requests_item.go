@@ -1,9 +1,9 @@
 package server
 
 import (
-	"TODOList/src/Item"
 	"TODOList/src/globals"
 	"TODOList/src/handler"
+	"TODOList/src/item"
 	"github.com/gin-gonic/gin"
 	"github.com/wonderivan/logger"
 	"net/http"
@@ -28,16 +28,16 @@ func RequestAddItem(ctx *gin.Context) {
 		return
 	}
 
-	var item Item.RequestTodoItem
+	var todoItem item.RequestTodoItem
 	var err error
-	err = ctx.ShouldBindJSON(&item)
+	err = ctx.ShouldBindJSON(&todoItem)
 	if err != nil {
 		logger.Warn("(RequestAddItem)Bind body json error: %v", err.Error())
 		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)
 		return
 	}
 
-	itemId, code := AddItem(userId, Item.RequestToTodoItem(item))
+	itemId, code := AddItem(userId, item.RequestToTodoItem(todoItem))
 	if code == globals.StatusDatabaseCommandOK {
 		ctx.JSON(
 			http.StatusCreated,
@@ -68,7 +68,7 @@ func RequestGetItemById(ctx *gin.Context) {
 
 	todoDatabaseItem, code := GetItemById(userId, itemId)
 	if code == globals.StatusDatabaseCommandOK {
-		requestItem := Item.DatabaseToRequestTodoItem(todoDatabaseItem)
+		requestItem := item.DatabaseToRequestTodoItem(todoDatabaseItem)
 		ctx.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "item": requestItem})
 	} else if code == globals.StatusDatabaseSelectNotFound {
 		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
@@ -84,7 +84,7 @@ func RequestGetItems(ctx *gin.Context) {
 		return
 	}
 
-	var requestItem Item.RequestGetItemsItem
+	var requestItem item.RequestGetItemsItem
 	err := ctx.ShouldBindQuery(&requestItem)
 	if err != nil {
 		logger.Warn("(RequestGetItems)Error when bind query: %v", err.Error())
@@ -129,7 +129,7 @@ func RequestGetItems(ctx *gin.Context) {
 			gin.H{
 				"code":    http.StatusOK,
 				"message": "",
-				"items":   Item.ListDatabaseToRequestTodoItem(items),
+				"items":   item.ListDatabaseToRequestTodoItem(items),
 			})
 	}
 }
@@ -142,7 +142,7 @@ func RequestUpdateItem(ctx *gin.Context) {
 	}
 
 	// Parse body
-	var requestItem Item.RequestUpdateTodoItem
+	var requestItem item.RequestUpdateTodoItem
 	err := ctx.ShouldBindJSON(&requestItem)
 	if err != nil {
 		logger.Warn("(RequestUpdateItem)Error when bind body json: %v", err.Error())

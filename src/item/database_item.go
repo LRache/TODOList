@@ -1,4 +1,4 @@
-package Item
+package item
 
 type DataBaseUserItem struct {
 	Id        int64  `db:"id"`

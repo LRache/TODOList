@@ -41,6 +41,7 @@ func main() {
 
 	userGroup.GET("/mail", server.RequestSendVerifyMail)
 	userGroup.POST("/mail", server.RequestGetMailVerify)
+	userGroup.POST("/reset", server.RequestResetUser)
 
 	err := router.Run(globals.Configures.GetString("server.host") +
 		":" + globals.Configures.GetString("server.port"))
