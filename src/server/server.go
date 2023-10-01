@@ -8,9 +8,12 @@ import (
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	"github.com/robfig/cron/v3"
 	"github.com/wonderivan/logger"
 	"gopkg.in/gomail.v2"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Manager struct {
@@ -78,7 +81,7 @@ func GetItemById(userId int64, itemId int64) (item.DataBaseTodoItem, int) {
 
 	if len(todoItems) == 0 {
 		logger.Warn("item not found: %v\n", itemId)
-		return item.DataBaseTodoItem{}, globals.StatusDatabaseSelectNotFound
+		return item.DataBaseTodoItem{}, globals.StatusItemNotFound
 	}
 	logger.Trace("(GetItemById)Select item from database successfully, userId = %v, itemId = %v", userId, itemId)
 	return todoItems[0], globals.StatusDatabaseCommandOK
@@ -115,7 +118,7 @@ func DeleteItemById(userId int64, itemId int64) int { // Return result code.
 	// Ensure item exists
 	if !isTodoItemExists(userId, itemId) {
 		logger.Warn("(DeleteItemById)item not exists, userId = %v, itemId = %v", userId, itemId)
-		return globals.StatusDatabaseSelectNotFound
+		return globals.StatusItemNotFound
 	}
 
 	// Delete item from database
@@ -139,7 +142,7 @@ func UpdateItem(userId int64, itemId int64, values map[string]string) int {
 	// Ensure item exists.
 	if !isTodoItemExists(userId, itemId) {
 		logger.Warn("(UpdateItem)item not exists: userId = %v, itemId = %v", userId, itemId)
-		return globals.StatusDatabaseSelectNotFound
+		return globals.StatusItemNotFound
 	}
 
 	// Update item in database
@@ -207,7 +210,7 @@ func UserLogin(user item.RequestLoginUserItem) (int64, int) {
 
 	if len(userItems) == 0 {
 		logger.Warn("Manager.UserLogin: User not found: username = %v", user)
-		return -1, globals.StatusDatabaseSelectNotFound
+		return -1, globals.StatusItemNotFound
 	}
 	// Login successfully
 	return userItems[0].Id, globals.StatusDatabaseCommandOK
@@ -237,7 +240,7 @@ func GetUserInfo(userId int64) (item.RequestUserInfoItem, int) {
 
 	if len(databaseItems) == 0 {
 		logger.Warn("(GetUserInfo)User not found: userId = %v", userId)
-		return userInfo, globals.StatusDatabaseSelectNotFound
+		return userInfo, globals.StatusItemNotFound
 	}
 
 	databaseItem := databaseItems[0]
@@ -280,6 +283,32 @@ func DeleteUser(userId int64) int {
 	return globals.StatusDatabaseCommandOK
 }
 
+// RemoveExpiredVerifyCode scan redis hash "MailVerifyCode" and remove the expired verify code.
+func RemoveExpiredVerifyCode() {
+	logger.Trace("(RemoveExpiredVerifyCode)Start.")
+	now := time.Now().Unix()
+	var cursor uint64 = 0
+	for {
+		values, cursor := globals.RedisClient.HScan("MailVerifyCode", cursor, "", 20).Val()
+		for i := 0; i < len(values); i += 2 {
+			key := values[i]
+			val := values[i+1]
+			expiredTime, err := strconv.ParseInt(val[6:], 10, 64)
+			if err != nil {
+				continue
+			}
+			if expiredTime < now {
+				globals.RedisClient.HDel("MailVerifyCode", key)
+				logger.Trace("(RemoveExpiredVerifyCode)Remove verify code, mailAddr = \"%s\"", key)
+			}
+		}
+		if cursor == 0 {
+			break
+		}
+	}
+}
+
+// SendVerifyMail email addr with verify code, return if send successfully.
 func SendVerifyMail(addr string) bool {
 	code := utils.GenerateVerifyCode()
 
@@ -288,24 +317,35 @@ func SendVerifyMail(addr string) bool {
 	m.SetHeader("To", addr)
 	m.SetHeader("Subject", "Verify Your Email")
 	m.SetBody("text/html", fmt.Sprintf("You verify code is <br> <b>%s</b>", code))
-	d := gomail.NewDialer(globals.MailServerHost, globals.MailServerPort, globals.MailSender, globals.MailPassword)
 	logger.Trace("(SendVerifyMail)Send verify mail to \"%s\", verifyCode = \"%s\"", addr, code)
-	err := d.DialAndSend(m)
+	err := gomail.Send(*globals.MailSender, m)
 	if err != nil {
 		logger.Warn("(SendVerifyMail)Error when send mail: %v", err.Error())
 		return false
 	}
-	globals.RedisClient.HSet("MailVerifyCode", addr, code)
-	logger.Trace("(SendVerifyMail)Push verify code successfully.")
-	return true
+
+	expiredTime := time.Now().Add(globals.MailVerifyCodeValidity).Unix()
+	expiredTimeString := fmt.Sprintf("%d", expiredTime)
+	ok := globals.RedisClient.HSet("MailVerifyCode", addr, code+expiredTimeString).Val()
+	if ok {
+		logger.Trace("(SendVerifyMail)Push verify code successfully.")
+	} else {
+		logger.Error("(SendVerifyMail)Error when push verify code.")
+	}
+
+	return ok
 }
 
+// VerifyMail verify mail code, return mail token and if code is correct.
 func VerifyMail(mailAddr string, code string) (string, int) {
+	// Get verify code from database
 	cmd := globals.RedisClient.HGet("MailVerifyCode", mailAddr)
 	if cmd.Err() != nil {
 		return "", globals.StatusNoVerifyCode
 	}
-	correctCode := cmd.Val()
+
+	value := cmd.Val()
+	correctCode := value[:6]
 	if correctCode == "" {
 		logger.Trace("(VerifyMail)Mail not found: \"%v\"", mailAddr)
 		return "", globals.StatusNoVerifyCode
@@ -322,4 +362,37 @@ func VerifyMail(mailAddr string, code string) (string, int) {
 	globals.RedisClient.HDel("MailVerifyCode", mailAddr)
 	logger.Trace("(VerifyMail)Verified mail: \"%v\".", mailAddr)
 	return t, globals.StatusOK
+}
+
+func SetItemCron(userId int64, itemId int64) int {
+	todoItem, code := GetItemById(userId, itemId)
+	if code != globals.StatusDatabaseCommandOK {
+		return code
+	}
+	deadlineTime, err := time.Parse(time.DateTime, todoItem.Deadline)
+	if err != nil {
+		logger.Warn("(SetItemCron)Error when parse deadline time: %v", err.Error())
+	}
+
+	month := deadlineTime.Month()
+	day := deadlineTime.Day()
+	hour := deadlineTime.Hour()
+	minute := deadlineTime.Minute()
+	second := deadlineTime.Second()
+	c := cron.New(cron.WithSeconds())
+	err = utils.GenerateOneCron(c, fmt.Sprintf("%d %d %d %d %d ?", second, minute, hour, day, month), func() {
+		itemCronFun(userId, todoItem)
+	})
+	if err != nil {
+		logger.Error("(SetItemCron)Error when set cron: %v", err.Error())
+		return globals.StatusInternalServerError
+	}
+	c.Start()
+	logger.Trace("(SetItemCron)Set item cron successfully, userId = %v, itemId = %v", userId, itemId)
+
+	return globals.StatusOK
+}
+
+func itemCronFun(userId int64, todoItem item.DataBaseTodoItem) {
+	logger.Trace("(itemCronFun)Item cron, userId = %d, todoItem = %v", userId, todoItem)
 }

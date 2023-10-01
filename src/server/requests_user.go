@@ -153,7 +153,7 @@ func RequestLogin(ctx *gin.Context) {
 				"refreshToken": refreshTokenString,
 			})
 	} else {
-		if code == globals.StatusDatabaseSelectNotFound {
+		if code == globals.StatusItemNotFound {
 			ctx.JSON(
 				http.StatusUnauthorized,
 				gin.H{
@@ -197,7 +197,7 @@ func RequestGetCurrentUser(ctx *gin.Context) {
 
 	// Select user from database
 	userInfo, code := GetUserInfo(userId)
-	if code == globals.StatusDatabaseSelectNotFound {
+	if code == globals.StatusItemNotFound {
 		ctx.JSON(
 			http.StatusBadRequest,
 			gin.H{
@@ -358,7 +358,7 @@ func RequestRefreshToken(ctx *gin.Context) {
 
 func RequestSendVerifyMail(ctx *gin.Context) {
 	mailAddr, ok := ctx.GetQuery("mail")
-	if !ok || len(mailAddr) == 0 {
+	if !ok || len(mailAddr) == 0 || !utils.IsMailFormat(mailAddr) {
 		ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
 		return
 	}

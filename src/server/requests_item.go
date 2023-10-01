@@ -70,7 +70,7 @@ func RequestGetItemById(ctx *gin.Context) {
 	if code == globals.StatusDatabaseCommandOK {
 		requestItem := item.DatabaseToRequestTodoItem(todoDatabaseItem)
 		ctx.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "item": requestItem})
-	} else if code == globals.StatusDatabaseSelectNotFound {
+	} else if code == globals.StatusItemNotFound {
 		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
 	} else {
 		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
@@ -151,7 +151,7 @@ func RequestUpdateItem(ctx *gin.Context) {
 
 	// Select items from database
 	code := UpdateItem(userId, requestItem.ItemId, requestItem.ToDataBaseMap())
-	if code == globals.StatusDatabaseSelectNotFound {
+	if code == globals.StatusItemNotFound {
 		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
 	} else if code == globals.StatusDatabaseCommandError {
 		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
@@ -160,6 +160,7 @@ func RequestUpdateItem(ctx *gin.Context) {
 	}
 }
 
+// RequestDeleteItemById send code and message.
 func RequestDeleteItemById(ctx *gin.Context) {
 	userId := checkUserLogin(ctx)
 	if userId == -1 {
@@ -177,9 +178,38 @@ func RequestDeleteItemById(ctx *gin.Context) {
 	code := DeleteItemById(userId, itemId)
 	if code == globals.StatusDatabaseCommandOK {
 		ctx.JSON(globals.ReturnJsonSuccess.Code, globals.ReturnJsonSuccess.Json)
-	} else if code == globals.StatusDatabaseSelectNotFound {
+	} else if code == globals.StatusItemNotFound {
 		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
 	} else {
 		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
+	}
+}
+
+func RequestSetItemCron(ctx *gin.Context) {
+	userId := checkUserLogin(ctx)
+	if userId == -1 {
+		return
+	}
+
+	itemIdString, ok := ctx.GetQuery("itemId")
+	if !ok {
+		logger.Warn("(RequestSetItemCron)Lack of query itemId.")
+		ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
+		return
+	}
+	itemId, err := strconv.ParseInt(itemIdString, 10, 64)
+	if err != nil {
+		logger.Warn("(RequestSetItemCron)Error when parse param: %v", err.Error())
+		ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
+		return
+	}
+
+	code := SetItemCron(userId, itemId)
+	if code == globals.StatusItemNotFound {
+		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
+	} else if code == globals.StatusInternalServerError {
+		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
+	} else {
+		ctx.JSON(globals.ReturnJsonSuccess.Code, globals.ReturnJsonSuccess.Json)
 	}
 }

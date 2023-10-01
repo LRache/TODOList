@@ -4,7 +4,9 @@ import (
 	"TODOList/src/globals"
 	"crypto/md5"
 	"fmt"
+	"github.com/robfig/cron/v3"
 	"github.com/wonderivan/logger"
+	"regexp"
 	"strconv"
 )
 
@@ -23,6 +25,21 @@ func IsValidUsername(name string) bool {
 		}
 	}
 	return count != len(r)
+}
+
+func IsMailFormat(s string) bool {
+	pattern := `\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*`
+	reg := regexp.MustCompile(pattern)
+	return reg.MatchString(s)
+}
+
+func GenerateOneCron(c *cron.Cron, spec string, f func()) error {
+	var id cron.EntryID
+	id, err := c.AddFunc(spec, func() {
+		f()
+		c.Remove(id)
+	})
+	return err
 }
 
 func StringToMd5(password string) string {

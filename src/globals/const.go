@@ -10,6 +10,7 @@ import (
 const (
 	UserTokenValidity        = time.Hour * 24
 	UserRefreshTokenValidity = time.Hour * 144
+	MailVerifyCodeValidity   = time.Second * 20
 )
 
 const (
@@ -20,11 +21,8 @@ const (
 const (
 	StatusDatabaseCommandOK = 0 + iota
 	StatusDatabaseCommandError
-	StatusDatabaseSelectNotFound
-)
-
-const (
-	StatusNoVerifyCode = 1 + iota
+	StatusItemNotFound
+	StatusNoVerifyCode
 	StatusIncorrectVerifyCode
 )
 

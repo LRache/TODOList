@@ -7,6 +7,7 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/robfig/cron/v3"
 	"github.com/wonderivan/logger"
 )
 
@@ -15,8 +16,7 @@ func main() {
 	globals.InitLogger()
 	globals.InitMail()
 	globals.InitDatabase()
-	defer globals.SqlDatabase.Close()
-	defer globals.RedisClient.Close()
+	defer globals.End()
 
 	router := gin.Default()
 	store := cookie.NewStore([]byte("adecvsefslkhj"))
@@ -30,6 +30,7 @@ func main() {
 	itemGroup.PUT("", server.RequestAddItem)
 	itemGroup.POST("", server.RequestUpdateItem)
 	itemGroup.DELETE("/:id", server.RequestDeleteItemById)
+	itemGroup.GET("/cron", server.RequestSetItemCron)
 
 	// user
 	userGroup := router.Group("/todo/user")
@@ -43,7 +44,17 @@ func main() {
 	userGroup.POST("/mail", server.RequestGetMailVerify)
 	userGroup.POST("/reset", server.RequestResetUser)
 
-	err := router.Run(globals.Configures.GetString("server.host") +
+	// Scan and remove expired verify code every 10 minutes.
+	c := cron.New()
+	_, err := c.AddFunc("@every 10m", server.RemoveExpiredVerifyCode)
+	if err != nil {
+		logger.Error("Error when add remove expired verify code function to cron.")
+	} else {
+		c.Start()
+		logger.Trace("Cron in main function start successfully.")
+	}
+
+	err = router.Run(globals.Configures.GetString("server.host") +
 		":" + globals.Configures.GetString("server.port"))
 	if err != nil {
 		logger.Emer("Run server error.")

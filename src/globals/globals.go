@@ -6,6 +6,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/spf13/viper"
 	"github.com/wonderivan/logger"
+	"gopkg.in/gomail.v2"
 )
 
 // CONFIGURES
@@ -35,19 +36,23 @@ func InitLogger() {
 
 // EMAIL
 var (
-	MailServerHost string
-	MailServerPort int
-	MailFrom       string
-	MailSender     string
-	MailPassword   string
+	MailFrom   string
+	MailSender *gomail.SendCloser
 )
 
 func InitMail() {
-	MailServerHost = Configures.GetString("email.host")
-	MailServerPort = Configures.GetInt("email.port")
+	host := Configures.GetString("email.host")
+	port := Configures.GetInt("email.port")
 	MailFrom = fmt.Sprintf("TODO APP <%s>", Configures.GetString("email.account"))
-	MailSender = Configures.GetString("email.account")
-	MailPassword = Configures.GetString("email.password")
+	username := Configures.GetString("email.account")
+	password := Configures.GetString("email.password")
+	d, err := gomail.NewDialer(host, port, username, password).Dial()
+	MailSender = &d
+	if err != nil {
+		logger.Error("(InitMail)Error when dial: %v", err.Error())
+	} else {
+		logger.Trace("(InitMail)Mail sender dail successfully.")
+	}
 }
 
 // DATABASE
@@ -73,4 +78,17 @@ func InitDatabase() {
 		Password: Configures.GetString("redis.password"),
 		DB:       Configures.GetInt("redis.database"),
 	})
+}
+
+func End() {
+	var err error
+	if err = SqlDatabase.Close(); err != nil {
+		logger.Error("Error when close sql database: %v", err.Error())
+	}
+	if err = RedisClient.Close(); err != nil {
+		logger.Error("Error when close redis: %v", err.Error())
+	}
+	if err = (*MailSender).Close(); err != nil {
+		logger.Error("Error when close mail sender: %v", err.Error())
+	}
 }
