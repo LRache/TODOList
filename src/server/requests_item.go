@@ -8,6 +8,7 @@ import (
 	"github.com/wonderivan/logger"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 // checkUserLogin return -1 if user not login, and set context.
@@ -191,7 +192,7 @@ func RequestSetItemCron(ctx *gin.Context) {
 		return
 	}
 
-	itemIdString, ok := ctx.GetQuery("itemId")
+	itemIdString, ok := ctx.GetQuery("id")
 	if !ok {
 		logger.Warn("(RequestSetItemCron)Lack of query itemId.")
 		ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
@@ -204,12 +205,25 @@ func RequestSetItemCron(ctx *gin.Context) {
 		return
 	}
 
-	code := SetItemCron(userId, itemId)
+	var before time.Duration
+	beforeString, ok := ctx.GetQuery("before")
+	if ok {
+		before, err = time.ParseDuration(beforeString)
+		if err != nil {
+			logger.Warn("(RequestSetItemCron)Error when parse param(before duration): %v", err.Error())
+			ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
+			return
+		}
+	} else {
+		before = time.Duration(0)
+	}
+
+	code := SetItemCron(userId, itemId, before)
 	if code == globals.StatusItemNotFound {
 		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
 	} else if code == globals.StatusInternalServerError {
 		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
 	} else {
-		ctx.JSON(globals.ReturnJsonSuccess.Code, globals.ReturnJsonSuccess.Json)
+		ctx.JSON(http.StatusCreated, globals.ReturnJsonSuccess.Json)
 	}
 }

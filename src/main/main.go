@@ -30,7 +30,7 @@ func main() {
 	itemGroup.PUT("", server.RequestAddItem)
 	itemGroup.POST("", server.RequestUpdateItem)
 	itemGroup.DELETE("/:id", server.RequestDeleteItemById)
-	itemGroup.GET("/cron", server.RequestSetItemCron)
+	itemGroup.PUT("/cron", server.RequestSetItemCron)
 
 	// user
 	userGroup := router.Group("/todo/user")

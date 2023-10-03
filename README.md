@@ -266,3 +266,21 @@
 |:------------:|:------:|:---------:|
 |     code     |  int   |  成功则为200  |
 |   message    | string |           |
+
+### 设置TODO定时提醒
+路由：`/todo/item/cron`  
+方法：`PUT`
+参数：
+
+|   位置    |   字段   |   类型   |          描述          |
+|:-------:|:------:|:------:|:--------------------:|
+| Headers | token  | string |       用户token        |
+|  Query  |   id   |  int   |       TODO id        |
+|  Query  | before | string | 在多久之前提醒，格式满足Duration |
+
+返回：
+
+|      字段      |   类型   |   描述    |
+|:------------:|:------:|:-------:|
+|     code     |  int   | 成功则为201 |
+|   message    | string |         |

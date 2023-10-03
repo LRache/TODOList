@@ -364,7 +364,7 @@ func VerifyMail(mailAddr string, code string) (string, int) {
 	return t, globals.StatusOK
 }
 
-func SetItemCron(userId int64, itemId int64) int {
+func SetItemCron(userId int64, itemId int64, d time.Duration) int {
 	todoItem, code := GetItemById(userId, itemId)
 	if code != globals.StatusDatabaseCommandOK {
 		return code
@@ -374,6 +374,7 @@ func SetItemCron(userId int64, itemId int64) int {
 		logger.Warn("(SetItemCron)Error when parse deadline time: %v", err.Error())
 	}
 
+	deadlineTime = deadlineTime.Add(-d)
 	month := deadlineTime.Month()
 	day := deadlineTime.Day()
 	hour := deadlineTime.Hour()
