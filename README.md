@@ -258,7 +258,7 @@
 |   位置    |  字段   |   类型   |   描述    |
 |:-------:|:-----:|:------:|:-------:|
 | Headers | token | string | 用户token |
-|  Path   |  id   |  int   | TODO id |
+|  Query  |  id   |  int   | TODO id |
 
 返回：
 
@@ -284,3 +284,41 @@
 |:------------:|:------:|:-------:|
 |     code     |  int   | 成功则为201 |
 |   message    | string |         |
+
+<b>注意：TODO定时提醒函数未实现，后续可以加入向客户端主动发送消息等功能。</b>
+
+## 数据库结构  
+### SQL  
+#### 表USERS
+
+|    字段    |    类型     |    描述     |
+|:--------:|:---------:|:---------:|
+|    id    |    int    |  用户唯一ID   |
+| username | vchar(64) |   用户昵称    |
+| password | vchar(64) | 用户密码，加密存储 |
+| mailAddr | vchar(64) |   用户邮箱    |
+
+#### 表TODO
+
+|     字段      |    类型    |       描述       |
+|:-----------:|:--------:|:--------------:|
+|     id      |   int    | 每个用户中TODO唯一的ID |
+|    title    |   text   |     TODO标题     |
+|   content   |   text   |     TODO内容     |
+| create_time | datetime |    TODO创建时间    |
+|  deadline   | datetime |    TODO截止时间    |
+|     tag     |   text   |     TODO标签     |
+|   userid    |   int    |  TODO所属用户的ID   |
+|    done     |   bool   |   TODO是否已完成    |
+|    keyid    |   int    |  自增，TODO唯一ID   |
+
+### REDIS
+
+|          字段          |   类型   |                      描述                       |
+|:--------------------:|:------:|:---------------------------------------------:|
+|      UserCount       | string |                     用户总数                      |
+|     EmptyUserId      |  list  |               空置用户ID列表，注册用户时优先取用              |
+|      ItemCount       |  hash  |               每个用户的TODO数量，键是用户ID              |
+| EmptyItemId:`userid` |  list  |         ID对应用户的空置TODO ID列表，添加TODO时优先取用        |
+|    MailVerifyCode    |  hash  | 邮箱对应验证码，存储的验证码由验证码和过期时间组成，服务器定期清理过期验证码，键是邮箱地址 |
+

@@ -5,9 +5,7 @@ import (
 	"TODOList/src/item"
 	"TODOList/src/utils"
 	"fmt"
-	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 	"github.com/robfig/cron/v3"
 	"github.com/wonderivan/logger"
 	"gopkg.in/gomail.v2"
@@ -15,11 +13,6 @@ import (
 	"strings"
 	"time"
 )
-
-type Manager struct {
-	database    *sqlx.DB
-	redisClient *redis.Client
-}
 
 func isUserExists(mailAddr string) bool {
 	var userItems []item.DataBaseUserItem
@@ -364,6 +357,7 @@ func VerifyMail(mailAddr string, code string) (string, int) {
 	return t, globals.StatusOK
 }
 
+// SetItemCron Set a schedule which will call itemCronFun at item deadline before a duration
 func SetItemCron(userId int64, itemId int64, d time.Duration) int {
 	todoItem, code := GetItemById(userId, itemId)
 	if code != globals.StatusDatabaseCommandOK {
@@ -394,6 +388,12 @@ func SetItemCron(userId int64, itemId int64, d time.Duration) int {
 	return globals.StatusOK
 }
 
+// itemCronFun Do sth.
 func itemCronFun(userId int64, todoItem item.DataBaseTodoItem) {
 	logger.Trace("(itemCronFun)Item cron, userId = %d, todoItem = %v", userId, todoItem)
+	/* Do sth,
+	like email the user or put some information to the redis task queue, so that another program can send message to app
+	or remind user when he or she logs in on the website.
+	*/
+
 }
