@@ -1,7 +1,7 @@
 # TODOList
 ## 运行
 ### 初始化数据库
-MySql:  
+#### MySQL  
 ```mysql
 CREATE DATABASE TODODATA;
 ```   
