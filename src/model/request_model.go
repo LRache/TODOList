@@ -1,21 +1,21 @@
-package item
+package model
 
 import (
 	"fmt"
 	"strings"
 )
 
-type RequestTodoItem struct {
+type RequestTodoItemModel struct {
 	Id         int64  `json:"id"`
 	Title      string `json:"title"`
 	Content    string `json:"content"`
-	CreateTime string `json:"createTime"`
-	Deadline   string `json:"deadline"`
+	CreateTime int64  `json:"createTime"`
+	Deadline   int64  `json:"deadline"`
 	Tag        string `json:"tag"`
 	Done       bool   `json:"done"`
 }
 
-func (requestItem *RequestTodoItem) Output() {
+func (requestItem *RequestTodoItemModel) Output() {
 	fmt.Println("title: ", requestItem.Title)
 	fmt.Println("content: ", requestItem.Content)
 	fmt.Println("createTime: ", requestItem.CreateTime)
@@ -24,18 +24,18 @@ func (requestItem *RequestTodoItem) Output() {
 	fmt.Println("done: ", requestItem.Done)
 }
 
-type RequestUpdateTodoItem struct {
+type RequestUpdateTodoItemModel struct {
 	UpdateKeys []string `json:"updateKeys"`
 	ItemId     int64    `json:"itemId"`
 	Title      string   `json:"title"`
 	Content    string   `json:"content"`
-	CreateTime string   `json:"createTime"`
-	Deadline   string   `json:"deadline"`
+	CreateTime int64    `json:"createTime"`
+	Deadline   int64    `json:"deadline"`
 	Tag        string   `json:"tag"`
 	Done       bool     `json:"done"`
 }
 
-func (requestItem *RequestUpdateTodoItem) Output() {
+func (requestItem *RequestUpdateTodoItemModel) Output() {
 	fmt.Println("updateKeys: ", requestItem.UpdateKeys)
 	fmt.Println("title: ", requestItem.Title)
 	fmt.Println("content: ", requestItem.Content)
@@ -45,7 +45,7 @@ func (requestItem *RequestUpdateTodoItem) Output() {
 	fmt.Println("done: ", requestItem.Done)
 }
 
-func (requestItem *RequestUpdateTodoItem) ToDataBaseMap() map[string]string {
+func (requestItem *RequestUpdateTodoItemModel) ToDatabaseMap() map[string]string {
 	m := make(map[string]string)
 	for _, key := range requestItem.UpdateKeys {
 		switch key {
@@ -54,9 +54,9 @@ func (requestItem *RequestUpdateTodoItem) ToDataBaseMap() map[string]string {
 		case "content":
 			m["content"] = fmt.Sprintf("\"%s\"", requestItem.Content)
 		case "createTime":
-			m["createTime"] = fmt.Sprintf("\"%s\"", requestItem.CreateTime)
+			m["createTime"] = fmt.Sprintf("FROM_UNIXTIME(%d)", requestItem.CreateTime)
 		case "deadline":
-			m["deadline"] = fmt.Sprintf("\"%s\"", requestItem.Deadline)
+			m["deadline"] = fmt.Sprintf("FROM_UNIXTIME(%d)", requestItem.Deadline)
 		case "tag":
 			m["tag"] = fmt.Sprintf("\"%s\"", requestItem.Tag)
 		case "done":
@@ -70,7 +70,7 @@ func (requestItem *RequestUpdateTodoItem) ToDataBaseMap() map[string]string {
 	return m
 }
 
-func (requestItem *RequestUpdateTodoItem) ToSqlCommandString() string {
+func (requestItem *RequestUpdateTodoItemModel) ToSqlCommandString() string {
 	commandStrings := make([]string, 0)
 	for _, key := range requestItem.UpdateKeys {
 		switch key {
@@ -79,9 +79,9 @@ func (requestItem *RequestUpdateTodoItem) ToSqlCommandString() string {
 		case "content":
 			commandStrings = append(commandStrings, fmt.Sprintf("content = \"%s\"", requestItem.Content))
 		case "createTime":
-			commandStrings = append(commandStrings, fmt.Sprintf("createTime = \"%s\"", requestItem.CreateTime))
+			commandStrings = append(commandStrings, fmt.Sprintf("createTime = \"%d\"", requestItem.CreateTime))
 		case "deadline":
-			commandStrings = append(commandStrings, fmt.Sprintf("deadline = \"%s\"", requestItem.Deadline))
+			commandStrings = append(commandStrings, fmt.Sprintf("deadline = \"%d\"", requestItem.Deadline))
 		case "tag":
 			commandStrings = append(commandStrings, fmt.Sprintf("tag = \"%s\"", requestItem.Tag))
 		case "done":

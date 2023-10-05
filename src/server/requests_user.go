@@ -3,7 +3,7 @@ package server
 import (
 	"TODOList/src/globals"
 	"TODOList/src/handler"
-	"TODOList/src/item"
+	"TODOList/src/model"
 	"TODOList/src/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/wonderivan/logger"
@@ -14,7 +14,7 @@ import (
 
 // RequestRegisterUser send user token in json and fresh refreshToken
 func RequestRegisterUser(ctx *gin.Context) {
-	var userItem item.RequestRegisterUserItem
+	var userItem model.RequestRegisterUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
 		logger.Warn("(RequestRegisterUser)Error when bind body json to userItem: %v", err.Error())
@@ -110,7 +110,7 @@ func RequestRegisterUser(ctx *gin.Context) {
 
 // RequestLogin send token in json and fresh refresh token.
 func RequestLogin(ctx *gin.Context) {
-	var userItem item.RequestLoginUserItem
+	var userItem model.RequestLoginUserItem
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
 		logger.Warn("(RequestLogin)Error when bind json: %v", err.Error())
@@ -152,31 +152,32 @@ func RequestLogin(ctx *gin.Context) {
 				"token":        utils.GenerateUserToken(userId),
 				"refreshToken": refreshTokenString,
 			})
-	} else {
-		if code == globals.StatusItemNotFound {
-			ctx.JSON(
-				http.StatusUnauthorized,
-				gin.H{
-					"code":         http.StatusUnauthorized,
-					"message":      "Incorrect username or password.",
-					"token":        utils.GetUserTokenFromContext(ctx),
-					"refreshToken": utils.GetUserRefreshTokenStringFromContext(ctx),
-				})
-		} else {
-			ctx.JSON(
-				http.StatusInternalServerError,
-				gin.H{
-					"code":         http.StatusInternalServerError,
-					"message":      "Internal server error.",
-					"token":        utils.GetUserTokenFromContext(ctx),
-					"refreshToken": utils.GetUserRefreshTokenStringFromContext(ctx),
-				})
-		}
+		return
 	}
+	if code == globals.StatusItemNotFound {
+		ctx.JSON(
+			http.StatusUnauthorized,
+			gin.H{
+				"code":         http.StatusUnauthorized,
+				"message":      "Incorrect username or password.",
+				"token":        utils.GetUserTokenFromContext(ctx),
+				"refreshToken": utils.GetUserRefreshTokenStringFromContext(ctx),
+			})
+		return
+	}
+	ctx.JSON(
+		http.StatusInternalServerError,
+		gin.H{
+			"code":         http.StatusInternalServerError,
+			"message":      "Internal server error.",
+			"token":        utils.GetUserTokenFromContext(ctx),
+			"refreshToken": utils.GetUserRefreshTokenStringFromContext(ctx),
+		})
+
 }
 
 func RequestGetCurrentUser(ctx *gin.Context) {
-	userId := handler.GetUserIdFromToken(ctx)
+	userId := utils.GetUserIdFromContext(ctx)
 
 	// User not login, return userId=-1 means no user
 	if userId == -1 {
@@ -225,7 +226,7 @@ func RequestGetCurrentUser(ctx *gin.Context) {
 }
 
 func RequestResetUser(ctx *gin.Context) {
-	var requestItem item.RequestResetUserItem
+	var requestItem model.RequestResetUserItem
 	if err := ctx.ShouldBindJSON(&requestItem); err != nil {
 		logger.Warn("(RequestResetUser)Error when parse body json: %v", err.Error())
 		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)
@@ -261,7 +262,7 @@ func RequestResetUser(ctx *gin.Context) {
 
 // RequestDeleteUser send empty user token if delete successfully.
 func RequestDeleteUser(ctx *gin.Context) {
-	userId := handler.GetUserIdFromToken(ctx)
+	userId := utils.GetUserIdFromContext(ctx)
 	if userId == -1 {
 		logger.Info("(RequestDeleteUser)User not login.")
 		ctx.JSON(
@@ -297,7 +298,7 @@ func RequestDeleteUser(ctx *gin.Context) {
 
 // RequestRefreshToken judge whether the refresh token has expired then send fresher token.
 func RequestRefreshToken(ctx *gin.Context) {
-	userId, b := handler.GetUserIdFromTokenIgnoreExpiration(ctx)
+	userId, b := utils.GetUserIdFromContextIgnoreExpiration(ctx)
 	// User id error
 	if userId == -1 {
 		if b {
@@ -326,6 +327,19 @@ func RequestRefreshToken(ctx *gin.Context) {
 	c := handler.ParseToken(utils.GetUserRefreshTokenStringFromContext(ctx))
 	logger.Trace("Manager.RequestRefreshToken: Refresh token expires at: %v, now: %v",
 		c.ExpiresAt, time.Now().Unix())
+
+	// Refresh token has unmatched user id and token code
+	if !utils.CheckUserTokenCodeString(c.UserId, c.UserTokenCode) {
+		ctx.JSON(
+			http.StatusUnauthorized,
+			gin.H{
+				"code":    http.StatusUnauthorized,
+				"message": "Refresh token has unmatched user id and token code.",
+				"token":   utils.GetUserTokenFromContext(ctx),
+			})
+		return
+	}
+
 	// Refresh token expired
 	if c.ExpiresAt < time.Now().Unix() {
 		ctx.JSON(
@@ -337,7 +351,9 @@ func RequestRefreshToken(ctx *gin.Context) {
 			})
 		return
 	}
-	if c.Id != userId {
+
+	// Refresh token and user token unmatched.
+	if c.UserId != userId {
 		ctx.JSON(
 			http.StatusBadRequest,
 			gin.H{
@@ -347,6 +363,8 @@ func RequestRefreshToken(ctx *gin.Context) {
 			})
 		return
 	}
+
+	// Refresh successfully.
 	ctx.JSON(
 		http.StatusOK,
 		gin.H{
@@ -358,10 +376,13 @@ func RequestRefreshToken(ctx *gin.Context) {
 
 func RequestSendVerifyMail(ctx *gin.Context) {
 	mailAddr, ok := ctx.GetQuery("mail")
+
+	// Invalid mail address.
 	if !ok || len(mailAddr) == 0 || !utils.IsMailFormat(mailAddr) {
 		ctx.JSON(globals.ReturnJsonQueryError.Code, globals.ReturnJsonQueryError.Json)
 		return
 	}
+
 	ok = SendVerifyMail(mailAddr)
 	if !ok {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": http.StatusBadRequest, "message": "Send mail failed."})
@@ -371,7 +392,7 @@ func RequestSendVerifyMail(ctx *gin.Context) {
 }
 
 func RequestGetMailVerify(ctx *gin.Context) {
-	var verifyMailItem item.RequestVerifyMailItem
+	var verifyMailItem model.RequestVerifyMailItem
 	err := ctx.ShouldBindJSON(&verifyMailItem)
 	if err != nil {
 		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)

@@ -2,7 +2,7 @@ package server
 
 import (
 	"TODOList/src/globals"
-	"TODOList/src/item"
+	"TODOList/src/model"
 	"TODOList/src/utils"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
@@ -15,7 +15,7 @@ import (
 )
 
 func isUserExists(mailAddr string) bool {
-	var userItems []item.DataBaseUserItem
+	var userItems []model.DataBaseUserModel
 	err := globals.SqlDatabase.Select(&userItems, "SELECT * FROM Users WHERE mailAddr = ? LIMIT 1", mailAddr)
 	if err != nil {
 		return false
@@ -33,9 +33,9 @@ func isTodoItemExists(userId int64, itemId int64) bool {
 	return count != 0
 }
 
-// AddItem return new item id and result code
-func AddItem(userId int64, todoItem item.Item) (int64, int) {
-	// Allocate item id
+// AddItem return new model id and result code
+func AddItem(userId int64, todoItem model.RequestTodoItemModel) (int64, int) {
+	// Allocate model id
 	var newItemId int64
 	if globals.RedisClient.LLen(fmt.Sprintf("EmptyItemId:%d", userId)).Val() == 0 {
 		newItemId = utils.GetItemCount(userId)
@@ -47,41 +47,41 @@ func AddItem(userId int64, todoItem item.Item) (int64, int) {
 		_ = globals.RedisClient.LPop(fmt.Sprintf("EmptyItemId:%d", userId)).Scan(&newItemId)
 	}
 
-	// Insert item into database
-	logger.Trace("Insert item into database, userId: %v, itemId: %v", userId, newItemId)
+	// Insert model into database
+	logger.Trace("Insert model into database, userId: %v, itemId: %v", userId, newItemId)
 	_, err := globals.SqlDatabase.Exec(
-		"INSERT INTO todo(id, title, content, create_time, deadline, tag, done, userid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO todo(id, title, content, create_time, deadline, tag, done, userid) VALUES (?, ?, ?, FROM_UNIXTIME(?), FROM_UNIXTIME(?), ?, ?, ?)",
 		newItemId, todoItem.Title, todoItem.Content, todoItem.CreateTime, todoItem.Deadline, todoItem.Tag, todoItem.Done, userId)
 	if err != nil {
-		logger.Error("Error at insert item:", err.Error())
+		logger.Error("Error at insert model:", err.Error())
 		return 0, globals.StatusDatabaseCommandError
 	}
 	utils.SetItemCountPlusOne(userId)
 	return newItemId, globals.StatusDatabaseCommandOK
 }
 
-// GetItemById return item list and result code.
-func GetItemById(userId int64, itemId int64) (item.DataBaseTodoItem, int) {
-	// Select item from database
-	logger.Trace("(GetItemById)Select item from database, userId = %v, itemId = %v", userId, itemId)
-	var todoItems []item.DataBaseTodoItem
+// GetItemById return model list and result code.
+func GetItemById(userId int64, itemId int64) (model.DataBaseTodoItemModel, int) {
+	// Select model from database
+	logger.Trace("(GetItemById)Select model from database, userId = %v, itemId = %v", userId, itemId)
+	var todoItems []model.DataBaseTodoItemModel
 	err := globals.SqlDatabase.Select(&todoItems,
 		"SELECT * FROM todo WHERE userId=? AND id=? LIMIT 1", userId, itemId)
 	if err != nil {
 		logger.Error("Error when select items from database: %v", err.Error())
-		return item.DataBaseTodoItem{}, globals.StatusDatabaseCommandError
+		return model.DataBaseTodoItemModel{}, globals.StatusDatabaseCommandError
 	}
 
 	if len(todoItems) == 0 {
-		logger.Warn("item not found: %v\n", itemId)
-		return item.DataBaseTodoItem{}, globals.StatusItemNotFound
+		logger.Warn("model not found: %v\n", itemId)
+		return model.DataBaseTodoItemModel{}, globals.StatusItemNotFound
 	}
-	logger.Trace("(GetItemById)Select item from database successfully, userId = %v, itemId = %v", userId, itemId)
+	logger.Trace("(GetItemById)Select model from database successfully, userId = %v, itemId = %v", userId, itemId)
 	return todoItems[0], globals.StatusDatabaseCommandOK
 }
 
-// GetItems return item list and result code.
-func GetItems(userId int64, requestItem item.RequestGetItemsItem, order string, pageIndex int, limit int) ([]item.DataBaseTodoItem, int) {
+// GetItems return model list and result code.
+func GetItems(userId int64, requestItem model.RequestGetItemsItem, order string, pageIndex int, limit int) ([]model.DataBaseTodoItemModel, int) {
 	// Generate select command.
 	var command string
 	if pageIndex != -1 {
@@ -96,7 +96,7 @@ func GetItems(userId int64, requestItem item.RequestGetItemsItem, order string, 
 
 	// Select items from database.
 	logger.Trace("(GetItems)Select items from database, sqlCommand = \"%v\"", command)
-	itemList := make([]item.DataBaseTodoItem, 0)
+	itemList := make([]model.DataBaseTodoItemModel, 0)
 	err := globals.SqlDatabase.Select(&itemList, command)
 	if err != nil {
 		logger.Error("(GetItems)Error when select items from database: %v", err.Error())
@@ -108,23 +108,23 @@ func GetItems(userId int64, requestItem item.RequestGetItemsItem, order string, 
 }
 
 func DeleteItemById(userId int64, itemId int64) int { // Return result code.
-	// Ensure item exists
+	// Ensure model exists
 	if !isTodoItemExists(userId, itemId) {
-		logger.Warn("(DeleteItemById)item not exists, userId = %v, itemId = %v", userId, itemId)
+		logger.Warn("(DeleteItemById)model not exists, userId = %v, itemId = %v", userId, itemId)
 		return globals.StatusItemNotFound
 	}
 
-	// Delete item from database
-	logger.Trace("(DeleteItemById)Delete item from database: userId = %v, itemId = %v", userId, itemId)
+	// Delete model from database
+	logger.Trace("(DeleteItemById)Delete model from database: userId = %v, itemId = %v", userId, itemId)
 	_, err := globals.SqlDatabase.Exec("DELETE FROM todo WHERE userid = ? AND id = ?", userId, itemId)
 	if err != nil {
-		logger.Error("(DeleteItemById)Error when delete item from database: %v", err.Error())
+		logger.Error("(DeleteItemById)Error when delete model from database: %v", err.Error())
 		return globals.StatusDatabaseCommandError
 	} else {
-		logger.Trace("(DeleteItemById)Delete item from database successfully: userId = %v, itemId = %v", userId, itemId)
-		// Record empty item id.
+		logger.Trace("(DeleteItemById)Delete model from database successfully: userId = %v, itemId = %v", userId, itemId)
+		// Record empty model id.
 		globals.RedisClient.LPush(fmt.Sprintf("EmptyItemId:%d", userId), itemId)
-		logger.Trace("Push empty item id to redis: userId = %v, itemId = %v", userId, itemId)
+		logger.Trace("Push empty model id to redis: userId = %v, itemId = %v", userId, itemId)
 		utils.SetItemCount(userId, utils.GetItemCount(userId)-1)
 		return globals.StatusDatabaseCommandOK
 	}
@@ -132,13 +132,13 @@ func DeleteItemById(userId int64, itemId int64) int { // Return result code.
 
 // UpdateItem return result code.
 func UpdateItem(userId int64, itemId int64, values map[string]string) int {
-	// Ensure item exists.
+	// Ensure model exists.
 	if !isTodoItemExists(userId, itemId) {
-		logger.Warn("(UpdateItem)item not exists: userId = %v, itemId = %v", userId, itemId)
+		logger.Warn("(UpdateItem)model not exists: userId = %v, itemId = %v", userId, itemId)
 		return globals.StatusItemNotFound
 	}
 
-	// Update item in database
+	// Update model in database
 	// Generate sql command
 	command := "UPDATE todo SET "
 	valueStrings := make([]string, 0)
@@ -154,12 +154,12 @@ func UpdateItem(userId int64, itemId int64, values map[string]string) int {
 		logger.Error("(UpdateItem)Error when update database: %v", err.Error())
 		return globals.StatusDatabaseCommandError
 	}
-	logger.Trace("(UpdateItem)Update item successfully: userId = %v, itemId = %v", userId, itemId)
+	logger.Trace("(UpdateItem)Update model successfully: userId = %v, itemId = %v", userId, itemId)
 	return globals.StatusDatabaseCommandOK
 }
 
 // AddUser return new user id, -1 for failure.
-func AddUser(user item.RequestRegisterUserItem) int64 {
+func AddUser(user model.RequestRegisterUserItem) int64 {
 	var newUserId int64
 	// Allocate new user id
 	if globals.RedisClient.LLen("EmptyUserId").Val() == 0 {
@@ -188,9 +188,9 @@ func AddUser(user item.RequestRegisterUserItem) int64 {
 }
 
 // UserLogin return userid and result code.
-func UserLogin(user item.RequestLoginUserItem) (int64, int) {
+func UserLogin(user model.RequestLoginUserItem) (int64, int) {
 	// Select from database
-	var userItems []item.DataBaseUserItem
+	var userItems []model.DataBaseUserModel
 	passwordMd5 := utils.StringToMd5(user.Password)
 
 	logger.Trace("(UserLogin)User login: mailAddr = %v, passwordMd5 = %v", user.MailAddr, passwordMd5)
@@ -219,11 +219,11 @@ func UserReset(mailAddr string, newPassword string) int {
 	return globals.StatusDatabaseCommandOK
 }
 
-// GetUserInfo return user info item and result code.
-func GetUserInfo(userId int64) (item.RequestUserInfoItem, int) {
+// GetUserInfo return user info model and result code.
+func GetUserInfo(userId int64) (model.RequestUserInfoItem, int) {
 	// Select user from database
-	var databaseItems []item.DataBaseUserItem
-	var userInfo item.RequestUserInfoItem
+	var databaseItems []model.DataBaseUserModel
+	var userInfo model.RequestUserInfoItem
 	logger.Trace("(GetUserInfo)Select user from database: userId = %v", userId)
 	err := globals.SqlDatabase.Select(&databaseItems, "SELECT * FROM users WHERE id = ?", userId)
 	if err != nil {
@@ -236,12 +236,17 @@ func GetUserInfo(userId int64) (item.RequestUserInfoItem, int) {
 		return userInfo, globals.StatusItemNotFound
 	}
 
+	todoCount := utils.GetItemCount(userId)
+	if todoCount == -1 {
+		todoCount = 0
+	}
+
 	databaseItem := databaseItems[0]
 	userInfo.UserId = databaseItem.Id
 	userInfo.Name = databaseItem.Name
 	userInfo.MailAddr = databaseItem.MailAddr
-	userInfo.TodoCount = utils.GetItemCount(userId)
-	logger.Trace("(GetUserInfo)Load user item successfully: userId = %v", userId)
+	userInfo.TodoCount = todoCount
+	logger.Trace("(GetUserInfo)Load user model successfully: userId = %v", userId)
 	return userInfo, globals.StatusDatabaseCommandOK
 }
 
@@ -250,7 +255,7 @@ func DeleteUser(userId int64) int {
 	var err error
 
 	// Ensure user exists.
-	var userItems []item.DataBaseUserItem
+	var userItems []model.DataBaseUserModel
 	err = globals.SqlDatabase.Select(&userItems, "SELECT * FROM Users WHERE id = ? LIMIT 1", userId)
 	if err != nil {
 		logger.Error("(DeleteUser)Error when select from database: %v", err.Error())
@@ -303,7 +308,7 @@ func RemoveExpiredVerifyCode() {
 
 // SendVerifyMail email addr with verify code, return if send successfully.
 func SendVerifyMail(addr string) bool {
-	code := utils.GenerateVerifyCode()
+	code := utils.GenerateRandomVerifyCode()
 
 	m := gomail.NewMessage()
 	m.SetHeader("From", globals.MailFrom)
@@ -357,16 +362,13 @@ func VerifyMail(mailAddr string, code string) (string, int) {
 	return t, globals.StatusOK
 }
 
-// SetItemCron Set a schedule which will call itemCronFun at item deadline before a duration
+// SetItemCron Set a schedule which will call itemCronFun at model deadline before a duration
 func SetItemCron(userId int64, itemId int64, d time.Duration) int {
 	todoItem, code := GetItemById(userId, itemId)
 	if code != globals.StatusDatabaseCommandOK {
 		return code
 	}
-	deadlineTime, err := time.Parse(time.DateTime, todoItem.Deadline)
-	if err != nil {
-		logger.Warn("(SetItemCron)Error when parse deadline time: %v", err.Error())
-	}
+	deadlineTime, _ := time.Parse(time.DateTime, todoItem.Deadline)
 
 	deadlineTime = deadlineTime.Add(-d)
 	month := deadlineTime.Month()
@@ -375,7 +377,7 @@ func SetItemCron(userId int64, itemId int64, d time.Duration) int {
 	minute := deadlineTime.Minute()
 	second := deadlineTime.Second()
 	c := cron.New(cron.WithSeconds())
-	err = utils.GenerateOneCron(c, fmt.Sprintf("%d %d %d %d %d ?", second, minute, hour, day, month), func() {
+	err := utils.GenerateOnceCron(c, fmt.Sprintf("%d %d %d %d %d ?", second, minute, hour, day, month), func() {
 		itemCronFun(userId, todoItem)
 	})
 	if err != nil {
@@ -383,13 +385,13 @@ func SetItemCron(userId int64, itemId int64, d time.Duration) int {
 		return globals.StatusInternalServerError
 	}
 	c.Start()
-	logger.Trace("(SetItemCron)Set item cron successfully, userId = %v, itemId = %v", userId, itemId)
+	logger.Trace("(SetItemCron)Set model cron successfully, userId = %v, itemId = %v", userId, itemId)
 
 	return globals.StatusOK
 }
 
 // itemCronFun Do sth.
-func itemCronFun(userId int64, todoItem item.DataBaseTodoItem) {
+func itemCronFun(userId int64, todoItem model.DataBaseTodoItemModel) {
 	logger.Trace("(itemCronFun)Item cron, userId = %d, todoItem = %v", userId, todoItem)
 	/* Do sth,
 	like email the user or put some information to the redis task queue, so that another program can send message to app

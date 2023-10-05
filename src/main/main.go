@@ -11,18 +11,7 @@ import (
 	"github.com/wonderivan/logger"
 )
 
-func main() {
-	globals.InitConfigures("./configures.yml")
-	globals.InitLogger()
-	globals.InitMail()
-	globals.InitDatabase()
-	defer globals.End()
-
-	router := gin.Default()
-	store := cookie.NewStore([]byte("adecvsefslkhj"))
-	router.Use(sessions.Sessions("UserSession", store))
-	router.Use(handler.JwtVerify)
-
+func initRouter(router *gin.Engine) {
 	// item
 	itemGroup := router.Group("/todo/item")
 	itemGroup.GET("/:id", server.RequestGetItemById)
@@ -43,6 +32,20 @@ func main() {
 	userGroup.GET("/mail", server.RequestSendVerifyMail)
 	userGroup.POST("/mail", server.RequestGetMailVerify)
 	userGroup.POST("/reset", server.RequestResetUser)
+}
+
+func main() {
+	globals.InitConfigures("./configures.yml")
+	globals.InitLogger()
+	globals.InitMail()
+	globals.InitDatabase()
+	defer globals.End()
+
+	router := gin.Default()
+	store := cookie.NewStore([]byte("adecvsefslkhj"))
+	router.Use(sessions.Sessions("UserSession", store))
+	router.Use(handler.JwtVerify)
+	initRouter(router)
 
 	// Scan and remove expired verify code every 10 minutes.
 	c := cron.New()
