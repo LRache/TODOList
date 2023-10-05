@@ -6,7 +6,7 @@ sql:
   userName: "root"
   password: "password"
   address: "localhost:3306"
-  table: "TODODATA"
+  database: "TODODATA"
 redis:
   address: "localhost:6379"
   password: ""

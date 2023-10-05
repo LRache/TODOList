@@ -1,4 +1,32 @@
 # TODOList
+## 运行
+### 初始化数据库
+MySql:  
+```mysql
+CREATE DATABASE TODODATA;
+```   
+```mysql
+CREATE TABLE IF NOT EXISTS Users(
+    id INT,  
+    username VARCHAR(64), 
+    password VARCHAR(64), 
+    todocount INT, 
+    mailAddr VARCHAR(64)
+) CHARSET=utf8;
+```
+```mysql
+CREATE TABLE IF NOT EXISTS todo(
+    id INT, 
+    title TEXT, 
+    content TEXT, 
+    create_time DATETIME, 
+    deadline DATETIME, 
+    tag TEXT, 
+    userid INT, 
+    done BOOL, 
+    keyid INT UNSIGNED AUTO_INCREMENT
+) CHARSET=utf8;
+```
 ## 数据结构
 ### TODOItem
 
@@ -291,12 +319,12 @@
 ### SQL  
 #### 表USERS
 
-|    字段    |    类型     |    描述     |
-|:--------:|:---------:|:---------:|
-|    id    |    int    |  用户唯一ID   |
-| username | vchar(64) |   用户昵称    |
-| password | vchar(64) | 用户密码，加密存储 |
-| mailAddr | vchar(64) |   用户邮箱    |
+|    字段    |     类型      |    描述     |
+|:--------:|:-----------:|:---------:|
+|    id    |     int     |  用户唯一ID   |
+| username | varchar(64) |   用户昵称    |
+| password | varchar(64) | 用户密码，加密存储 |
+| mailAddr | varchar(64) |   用户邮箱    |
 
 #### 表TODO
 
@@ -317,8 +345,8 @@
 |          字段          |   类型   |                      描述                       |
 |:--------------------:|:------:|:---------------------------------------------:|
 |      UserCount       | string |                     用户总数                      |
-|     EmptyUserId      |  list  |               空置用户ID列表，注册用户时优先取用              |
-|      ItemCount       |  hash  |               每个用户的TODO数量，键是用户ID              |
-| EmptyItemId:`userid` |  list  |         ID对应用户的空置TODO ID列表，添加TODO时优先取用        |
+|     EmptyUserId      |  list  |              空置用户ID列表，注册用户时优先取用               |
+|      ItemCount       |  hash  |              每个用户的TODO数量，键是用户ID               |
+| EmptyItemId:`userid` |  list  |        ID对应用户的空置TODO ID列表，添加TODO时优先取用         |
 |    MailVerifyCode    |  hash  | 邮箱对应验证码，存储的验证码由验证码和过期时间组成，服务器定期清理过期验证码，键是邮箱地址 |
 

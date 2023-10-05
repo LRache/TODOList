@@ -69,7 +69,7 @@ func InitDatabase() {
 			Configures.GetString("sql.userName"),
 			Configures.GetString("sql.password"),
 			Configures.GetString("sql.address"),
-			Configures.GetString("sql.table"),
+			Configures.GetString("sql.database"),
 		),
 	)
 
