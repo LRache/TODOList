@@ -95,30 +95,30 @@ func (requestItem *RequestUpdateTodoItemModel) ToSqlCommandString() string {
 	return strings.Join(commandStrings, ", ")
 }
 
-type RequestUserNameItem struct {
+type RequestUserNameModel struct {
 	Name string `json:"username"`
 }
 
-type RequestRegisterUserItem struct {
+type RequestRegisterUserModel struct {
 	Name      string `json:"username"`
 	Password  string `json:"password"`
 	MailAddr  string `json:"mailAddr"`
 	MailToken string `json:"mailToken"`
 }
 
-type RequestLoginUserItem struct {
+type RequestLoginUserModel struct {
 	MailAddr string `json:"mailAddr"`
 	Password string `json:"password"`
 }
 
-type RequestUserInfoItem struct {
+type RequestUserInfoModel struct {
 	Name      string `json:"username"`
 	UserId    int64  `json:"userid"`
 	TodoCount int64  `json:"todoCount"`
 	MailAddr  string `json:"mailAddr"`
 }
 
-type RequestGetItemsItem struct {
+type RequestGetItemsModel struct {
 	Tag       string `form:"tag"`
 	Done      string `form:"done"`
 	Deadline  string `form:"deadlineBefore"`
@@ -127,7 +127,7 @@ type RequestGetItemsItem struct {
 	Order     string `form:"order"`
 }
 
-func (requestItem *RequestGetItemsItem) ToSqlSelectWhereCommandStrings() []string {
+func (requestItem *RequestGetItemsModel) ToSqlSelectWhereCommandStrings() []string {
 	commandStrings := make([]string, 0)
 	if requestItem.Tag != "" {
 		commandStrings = append(commandStrings, fmt.Sprintf("tag = \"%s\"", requestItem.Tag))
@@ -145,12 +145,12 @@ func (requestItem *RequestGetItemsItem) ToSqlSelectWhereCommandStrings() []strin
 	return commandStrings
 }
 
-type RequestVerifyMailItem struct {
+type RequestVerifyMailItemModel struct {
 	MailAddr   string `json:"mail"`
 	VerifyCode string `json:"code"`
 }
 
-type RequestResetUserItem struct {
+type RequestResetUserItemModel struct {
 	MailAddr    string `json:"mailAddr"`
 	MailToken   string `json:"mailToken"`
 	NewPassword string `json:"newPassword"`

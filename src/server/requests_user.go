@@ -14,7 +14,7 @@ import (
 
 // RequestRegisterUser send user token in json and fresh refreshToken
 func RequestRegisterUser(ctx *gin.Context) {
-	var userItem model.RequestRegisterUserItem
+	var userItem model.RequestRegisterUserModel
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
 		logger.Warn("(RequestRegisterUser)Error when bind body json to userItem: %v", err.Error())
@@ -110,7 +110,7 @@ func RequestRegisterUser(ctx *gin.Context) {
 
 // RequestLogin send token in json and fresh refresh token.
 func RequestLogin(ctx *gin.Context) {
-	var userItem model.RequestLoginUserItem
+	var userItem model.RequestLoginUserModel
 	err := ctx.ShouldBindJSON(&userItem)
 	if err != nil {
 		logger.Warn("(RequestLogin)Error when bind json: %v", err.Error())
@@ -226,7 +226,7 @@ func RequestGetCurrentUser(ctx *gin.Context) {
 }
 
 func RequestResetUser(ctx *gin.Context) {
-	var requestItem model.RequestResetUserItem
+	var requestItem model.RequestResetUserItemModel
 	if err := ctx.ShouldBindJSON(&requestItem); err != nil {
 		logger.Warn("(RequestResetUser)Error when parse body json: %v", err.Error())
 		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)
@@ -254,6 +254,7 @@ func RequestResetUser(ctx *gin.Context) {
 
 	code := UserReset(requestItem.MailAddr, requestItem.NewPassword)
 	if code == globals.StatusDatabaseCommandOK {
+		utils.UpdateUserTokenCodeString(getUserIdByMail(requestItem.MailAddr))
 		ctx.JSON(globals.ReturnJsonSuccess.Code, globals.ReturnJsonSuccess.Json)
 	} else {
 		ctx.JSON(globals.ReturnJsonInternalServerError.Code, globals.ReturnJsonInternalServerError.Json)
@@ -392,7 +393,7 @@ func RequestSendVerifyMail(ctx *gin.Context) {
 }
 
 func RequestGetMailVerify(ctx *gin.Context) {
-	var verifyMailItem model.RequestVerifyMailItem
+	var verifyMailItem model.RequestVerifyMailItemModel
 	err := ctx.ShouldBindJSON(&verifyMailItem)
 	if err != nil {
 		ctx.JSON(globals.ReturnJsonBodyJsonError.Code, globals.ReturnJsonBodyJsonError.Json)

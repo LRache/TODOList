@@ -23,6 +23,17 @@ func isUserExists(mailAddr string) bool {
 	return len(userItems) != 0
 }
 
+func getUserIdByMail(mailAddr string) int64 {
+	var userItems []model.DataBaseUserModel
+	err := globals.SqlDatabase.Select(&userItems, "SELECT * FROM Users WHERE mailAddr = ? LIMIT 1", mailAddr)
+	if err != nil {
+		logger.Error("(getUserIdByMail)Error when select user from database: err = \"%v\", mailAddr = \"%v\"",
+			err.Error(), mailAddr)
+		return -1
+	}
+	return userItems[0].Id
+}
+
 func isTodoItemExists(userId int64, itemId int64) bool {
 	var count int
 	err := globals.SqlDatabase.QueryRow("SELECT COUNT(*) FROM todo WHERE userid = ? AND id = ?", userId, itemId).Scan(&count)
@@ -81,7 +92,7 @@ func GetItemById(userId int64, itemId int64) (model.DataBaseTodoItemModel, int) 
 }
 
 // GetItems return model list and result code.
-func GetItems(userId int64, requestItem model.RequestGetItemsItem, order string, pageIndex int, limit int) ([]model.DataBaseTodoItemModel, int) {
+func GetItems(userId int64, requestItem model.RequestGetItemsModel, order string, pageIndex int, limit int) ([]model.DataBaseTodoItemModel, int) {
 	// Generate select command.
 	var command string
 	if pageIndex != -1 {
@@ -159,7 +170,7 @@ func UpdateItem(userId int64, itemId int64, values map[string]string) int {
 }
 
 // AddUser return new user id, -1 for failure.
-func AddUser(user model.RequestRegisterUserItem) int64 {
+func AddUser(user model.RequestRegisterUserModel) int64 {
 	var newUserId int64
 	// Allocate new user id
 	if globals.RedisClient.LLen("EmptyUserId").Val() == 0 {
@@ -188,7 +199,7 @@ func AddUser(user model.RequestRegisterUserItem) int64 {
 }
 
 // UserLogin return userid and result code.
-func UserLogin(user model.RequestLoginUserItem) (int64, int) {
+func UserLogin(user model.RequestLoginUserModel) (int64, int) {
 	// Select from database
 	var userItems []model.DataBaseUserModel
 	passwordMd5 := utils.StringToMd5(user.Password)
@@ -220,10 +231,10 @@ func UserReset(mailAddr string, newPassword string) int {
 }
 
 // GetUserInfo return user info model and result code.
-func GetUserInfo(userId int64) (model.RequestUserInfoItem, int) {
+func GetUserInfo(userId int64) (model.RequestUserInfoModel, int) {
 	// Select user from database
 	var databaseItems []model.DataBaseUserModel
-	var userInfo model.RequestUserInfoItem
+	var userInfo model.RequestUserInfoModel
 	logger.Trace("(GetUserInfo)Select user from database: userId = %v", userId)
 	err := globals.SqlDatabase.Select(&databaseItems, "SELECT * FROM users WHERE id = ?", userId)
 	if err != nil {

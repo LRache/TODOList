@@ -85,7 +85,7 @@ func RequestGetItems(ctx *gin.Context) {
 		return
 	}
 
-	var requestItem model.RequestGetItemsItem
+	var requestItem model.RequestGetItemsModel
 	err := ctx.ShouldBindQuery(&requestItem)
 	if err != nil {
 		logger.Warn("(RequestGetItems)Error when bind query: %v", err.Error())
