@@ -348,4 +348,5 @@ CREATE TABLE IF NOT EXISTS todo(
 |      ItemCount       |  hash  |              每个用户的TODO数量，键是用户ID               |
 | EmptyItemId:`userid` |  list  |        ID对应用户的空置TODO ID列表，添加TODO时优先取用         |
 |    MailVerifyCode    |  hash  | 邮箱对应验证码，存储的验证码由验证码和过期时间组成，服务器定期清理过期验证码，键是邮箱地址 |
+|    UserTokenCode     |  hash  |             用户id对应随机生成的用户Token验证码             |
 
