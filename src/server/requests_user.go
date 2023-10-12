@@ -384,8 +384,8 @@ func RequestSendVerifyMail(ctx *gin.Context) {
 		return
 	}
 
-	ok = SendVerifyMail(mailAddr)
-	if !ok {
+	code := SendVerifyMail(mailAddr)
+	if code == globals.StatusInternalServerError {
 		ctx.JSON(http.StatusBadRequest, gin.H{"code": http.StatusBadRequest, "message": "Send mail failed."})
 	} else {
 		ctx.JSON(globals.ReturnJsonSuccess.Code, globals.ReturnJsonSuccess.Json)

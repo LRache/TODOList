@@ -318,7 +318,7 @@ func RemoveExpiredVerifyCode() {
 }
 
 // SendVerifyMail email addr with verify code, return if send successfully.
-func SendVerifyMail(addr string) bool {
+func SendVerifyMail(addr string) int {
 	code := utils.GenerateRandomVerifyCode()
 
 	m := gomail.NewMessage()
@@ -330,19 +330,20 @@ func SendVerifyMail(addr string) bool {
 	err := gomail.Send(*globals.MailSender, m)
 	if err != nil {
 		logger.Warn("(SendVerifyMail)Error when send mail: %v", err.Error())
-		return false
+		return globals.StatusInternalServerError
 	}
 
 	expiredTime := time.Now().Add(globals.MailVerifyCodeValidity).Unix()
 	expiredTimeString := fmt.Sprintf("%d", expiredTime)
-	ok := globals.RedisClient.HSet("MailVerifyCode", addr, code+expiredTimeString).Val()
-	if ok {
-		logger.Trace("(SendVerifyMail)Push verify code successfully.")
-	} else {
-		logger.Error("(SendVerifyMail)Error when push verify code.")
-	}
+	err = globals.RedisClient.HSet("MailVerifyCode", addr, code+expiredTimeString).Err()
+	if err != nil {
+		logger.Error("(SendVerifyMail)Error when push verify code: ", err.Error())
+		return globals.StatusInternalServerError
 
-	return ok
+	} else {
+		logger.Trace("(SendVerifyMail)Push verify code successfully.")
+		return globals.StatusOK
+	}
 }
 
 // VerifyMail verify mail code, return mail token and if code is correct.
