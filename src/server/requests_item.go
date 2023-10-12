@@ -2,8 +2,8 @@ package server
 
 import (
 	"TODOList/src/globals"
-	"TODOList/src/handler"
-	"TODOList/src/item"
+	"TODOList/src/model"
+	"TODOList/src/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/wonderivan/logger"
 	"net/http"
@@ -13,7 +13,7 @@ import (
 
 // checkUserLogin return -1 if user not login, and set context.
 func checkUserLogin(ctx *gin.Context) int64 {
-	userId := handler.GetUserIdFromToken(ctx)
+	userId := utils.GetUserIdFromContext(ctx)
 	if userId == -1 {
 		logger.Info("User not login.")
 		ctx.JSON(globals.ReturnJsonUserNotLogin.Code, globals.ReturnJsonUserNotLogin.Json)
@@ -22,14 +22,14 @@ func checkUserLogin(ctx *gin.Context) int64 {
 	return userId
 }
 
-// RequestAddItem send new item id.
+// RequestAddItem send new model id.
 func RequestAddItem(ctx *gin.Context) {
 	userId := checkUserLogin(ctx)
 	if userId == -1 {
 		return
 	}
 
-	var todoItem item.RequestTodoItem
+	var todoItem model.RequestTodoItemModel
 	var err error
 	err = ctx.ShouldBindJSON(&todoItem)
 	if err != nil {
@@ -38,7 +38,7 @@ func RequestAddItem(ctx *gin.Context) {
 		return
 	}
 
-	itemId, code := AddItem(userId, item.RequestToTodoItem(todoItem))
+	itemId, code := AddItem(userId, todoItem)
 	if code == globals.StatusDatabaseCommandOK {
 		ctx.JSON(
 			http.StatusCreated,
@@ -53,7 +53,7 @@ func RequestAddItem(ctx *gin.Context) {
 	}
 }
 
-// RequestGetItemById send a item using RequestTodoItem type.
+// RequestGetItemById send a model using RequestTodoItemModel type.
 func RequestGetItemById(ctx *gin.Context) {
 	userId := checkUserLogin(ctx)
 	if userId == -1 {
@@ -69,8 +69,8 @@ func RequestGetItemById(ctx *gin.Context) {
 
 	todoDatabaseItem, code := GetItemById(userId, itemId)
 	if code == globals.StatusDatabaseCommandOK {
-		requestItem := item.DatabaseToRequestTodoItem(todoDatabaseItem)
-		ctx.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "item": requestItem})
+		requestItem := todoDatabaseItem.ToRequestTodoModel()
+		ctx.JSON(http.StatusOK, gin.H{"code": http.StatusOK, "model": requestItem})
 	} else if code == globals.StatusItemNotFound {
 		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
 	} else {
@@ -78,14 +78,14 @@ func RequestGetItemById(ctx *gin.Context) {
 	}
 }
 
-// RequestGetItems send item list using RequestTodoItem type.
+// RequestGetItems send model list using RequestTodoItemModel type.
 func RequestGetItems(ctx *gin.Context) {
 	userid := checkUserLogin(ctx)
 	if userid == -1 {
 		return
 	}
 
-	var requestItem item.RequestGetItemsItem
+	var requestItem model.RequestGetItemsModel
 	err := ctx.ShouldBindQuery(&requestItem)
 	if err != nil {
 		logger.Warn("(RequestGetItems)Error when bind query: %v", err.Error())
@@ -130,7 +130,7 @@ func RequestGetItems(ctx *gin.Context) {
 			gin.H{
 				"code":    http.StatusOK,
 				"message": "",
-				"items":   item.ListDatabaseToRequestTodoItem(items),
+				"items":   model.ListDatabaseToRequestTodoItem(items),
 			})
 	}
 }
@@ -143,7 +143,7 @@ func RequestUpdateItem(ctx *gin.Context) {
 	}
 
 	// Parse body
-	var requestItem item.RequestUpdateTodoItem
+	var requestItem model.RequestUpdateTodoItemModel
 	err := ctx.ShouldBindJSON(&requestItem)
 	if err != nil {
 		logger.Warn("(RequestUpdateItem)Error when bind body json: %v", err.Error())
@@ -151,7 +151,7 @@ func RequestUpdateItem(ctx *gin.Context) {
 	}
 
 	// Select items from database
-	code := UpdateItem(userId, requestItem.ItemId, requestItem.ToDataBaseMap())
+	code := UpdateItem(userId, requestItem.ItemId, requestItem.ToDatabaseMap())
 	if code == globals.StatusItemNotFound {
 		ctx.JSON(globals.ReturnJsonItemNotFound.Code, globals.ReturnJsonItemNotFound.Json)
 	} else if code == globals.StatusDatabaseCommandError {
@@ -175,7 +175,7 @@ func RequestDeleteItemById(ctx *gin.Context) {
 		return
 	}
 
-	// Delete item from database
+	// Delete model from database
 	code := DeleteItemById(userId, itemId)
 	if code == globals.StatusDatabaseCommandOK {
 		ctx.JSON(globals.ReturnJsonSuccess.Code, globals.ReturnJsonSuccess.Json)

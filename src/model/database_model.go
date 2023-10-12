@@ -1,6 +1,6 @@
-package item
+package model
 
-type DataBaseUserItem struct {
+type DataBaseUserModel struct {
 	Id        int64  `db:"id"`
 	Name      string `db:"username"`
 	Password  string `db:"password"`
@@ -8,7 +8,7 @@ type DataBaseUserItem struct {
 	MailAddr  string `db:"mailAddr"`
 }
 
-type DataBaseTodoItem struct {
+type DataBaseTodoItemModel struct {
 	Title      string `db:"title"`
 	Content    string `db:"content"`
 	CreateTime string `db:"create_time"`

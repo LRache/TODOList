@@ -8,6 +8,7 @@ import (
 	"github.com/wonderivan/logger"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 func IsValidUsername(name string) bool {
@@ -33,7 +34,7 @@ func IsMailFormat(s string) bool {
 	return reg.MatchString(s)
 }
 
-func GenerateOneCron(c *cron.Cron, spec string, f func()) error {
+func GenerateOnceCron(c *cron.Cron, spec string, f func()) error {
 	var id cron.EntryID
 	id, err := c.AddFunc(spec, func() {
 		f()
@@ -48,7 +49,24 @@ func StringToMd5(password string) string {
 	return fmt.Sprintf("%x", pwd)
 }
 
-func GenerateVerifyCode() string {
+func GenerateRandomTokenCode() string {
+	code := make([]string, 16)
+	for i := 0; i < 16; i++ {
+		n := globals.Rand.Intn(62)
+		if n < 10 {
+			code[i] = string(byte(48 + n))
+		} else {
+			if n < 36 {
+				code[i] = string(byte(55 + n))
+			} else {
+				code[i] = string(byte(61 + n))
+			}
+		}
+	}
+	return strings.Join(code, "")
+}
+
+func GenerateRandomVerifyCode() string {
 	var s string
 	for i := 0; i < 6; i++ {
 		s += strconv.Itoa(globals.Rand.Intn(10))

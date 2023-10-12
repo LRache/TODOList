@@ -1,6 +1,7 @@
 package globals
 
 import (
+	"crypto/tls"
 	"fmt"
 	"github.com/go-redis/redis"
 	"github.com/jmoiron/sqlx"
@@ -46,7 +47,9 @@ func InitMail() {
 	MailFrom = fmt.Sprintf("TODO APP <%s>", Configures.GetString("email.account"))
 	username := Configures.GetString("email.account")
 	password := Configures.GetString("email.password")
-	d, err := gomail.NewDialer(host, port, username, password).Dial()
+	dialer := gomail.NewDialer(host, port, username, password)
+	dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	d, err := dialer.Dial()
 	MailSender = &d
 	if err != nil {
 		logger.Error("(InitMail)Error when dial: %v", err.Error())
